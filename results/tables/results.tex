@@ -1,0 +1,23 @@
+\begin{table}[t]
+\caption{Macro-F1 by strategy (majority vote across three seeds), grouped by delivered mechanism. The best score in each column is in bold.}
+\label{tab:results}
+\centering
+\begin{tabular}{lccc}
+\toprule
+Method & within & short & long \\
+\midrule
+Baseline                 & 0.713 & 0.671 & 0.688 \\
+\midrule
+\multicolumn{4}{l}{\textit{Recency weighting}} \\
+RecencyWeight            & 0.734 & 0.679 & 0.711 \\
+TEA                      & \textbf{0.736} & 0.687 & \textbf{0.713} \\
+\midrule
+\multicolumn{4}{l}{\textit{Vocabulary adaptation}} \\
+MLMPretrain              & 0.718 & \textbf{0.694} & 0.699 \\
+TimeLMs                  & 0.726 & 0.683 & 0.695 \\
+\midrule
+\multicolumn{4}{l}{\textit{Structure-agnostic}} \\
+DatePrefix               & 0.724 & 0.675 & 0.691 \\
+\bottomrule
+\end{tabular}
+\end{table}

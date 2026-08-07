@@ -1,0 +1,4 @@
+split,always_fail_6sys_pct,always_fail_8sys_pct,cracked_by_S8_or_S10,old_af_where_S10_correct_any_seed
+within,12.1,12.1,0,0
+short,16.4,16.3,1,0
+long,15.4,15.3,1,1

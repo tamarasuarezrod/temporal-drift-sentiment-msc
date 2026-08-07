@@ -1,0 +1,16 @@
+comparison,split,mean_diff_pp,ci_lo_pp,ci_hi_pp,significant
+S10 vs baseline,within,1.81,0.0,3.7,True
+S10 vs S2 (mechanism on top of backbone),within,1.37,-0.1,2.8,False
+S10 vs S8 (backbone on top of mechanism),within,0.22,-1.3,1.8,False
+S10 vs S7 (TEA),within,-0.41,-2.0,1.2,False
+S8 vs baseline,within,1.59,-0.0,3.3,False
+S10 vs baseline,short,1.22,-0.4,2.9,False
+S10 vs S2 (mechanism on top of backbone),short,-1.09,-2.3,0.1,False
+S10 vs S8 (backbone on top of mechanism),short,0.34,-1.1,1.8,False
+S10 vs S7 (TEA),short,-0.42,-2.1,1.2,False
+S8 vs baseline,short,0.88,-0.6,2.4,False
+S10 vs baseline,long,2.77,0.9,4.7,True
+S10 vs S2 (mechanism on top of backbone),long,1.66,0.2,3.2,True
+S10 vs S8 (backbone on top of mechanism),long,-0.15,-1.8,1.5,False
+S10 vs S7 (TEA),long,0.34,-1.5,2.1,False
+S8 vs baseline,long,2.92,1.1,4.7,True

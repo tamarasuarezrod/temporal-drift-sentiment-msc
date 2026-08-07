@@ -1,0 +1,4 @@
+split,baseline,S2_backbone,S8_mechanism,S10_both,backbone_effect_pp,mechanism_effect_pp,interaction_pp
+within,0.7134,0.7177,0.7294,0.7315,0.43,1.6,-0.23
+short,0.6705,0.6937,0.6795,0.6828,2.31,0.9,-1.99
+long,0.6883,0.6993,0.7174,0.716,1.1,2.91,-1.24

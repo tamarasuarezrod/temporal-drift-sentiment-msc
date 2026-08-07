@@ -1,0 +1,7 @@
+comparison,split,mean_diff_pp,ci_lo_pp,ci_hi_pp,significant
+TEA vs Baseline (within winner),within,2.1993078141434546,0.5808070514313048,3.8875755105207825,True
+MLMPretrain vs Baseline (short winner),short,2.321279588831091,0.7693316656598855,3.969450252001615,True
+TEA vs Baseline (long winner),long,2.4399740852157175,0.592205648946935,4.36955975013191,True
+"TEA vs RecencyWeight (top tier, long)",long,0.13068040428148908,-1.5646080280853656,1.8354297538255484,False
+"TEA vs RecencyWeight (top tier, within)",within,0.1433394823365494,-1.4586593879217913,1.7171575325129074,False
+"MLMPretrain vs TEA (top tier, short)",short,0.6374281280413648,-1.1148125805041664,2.4004169609397876,False

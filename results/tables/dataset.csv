@@ -1,0 +1,7 @@
+Split,Period,Size,Labels
+Train,2014-2016,49608,distant
+Practice (2016),2016,1344,distant
+Practice (2018),2018,1344,distant
+Test (within),2016,908,manual
+Test (short),2018,908,manual
+Test (long),2021,908,manual

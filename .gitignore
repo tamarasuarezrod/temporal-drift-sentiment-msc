@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Environments
+.env
+.venv/
+env/
+venv/
+*.conda
+
+# Data and checkpoints (hosted on HuggingFace / OneDrive, not in git)
+/data
+checkpoints/
+*.safetensors
+*.bin
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+*.swp
+texput.log

@@ -1,0 +1,7 @@
+Method,within,short,long
+Baseline,0.7134,0.6705,0.6883
+DatePrefix,0.7244,0.675,0.6912
+MLMPretrain,0.7177,0.6937,0.6993
+RecencyWeight,0.7343,0.6794,0.7113
+TimeLMs,0.7265,0.6828,0.6949
+TEA,0.7355,0.6872,0.7126
