@@ -50,6 +50,17 @@ def polarity_counts(text: str, pos: set[str], neg: set[str]) -> tuple[int, int]:
     return sum(1 for t in toks if t in pos), sum(1 for t in toks if t in neg)
 
 
+def flag_direction(lex_pos: int, lex_neg: int, gold: str) -> str | None:
+    """Flag a tweet whose words point strictly one way while the gold label
+    points the other: all-positive words with a negative label (sarcasm), or
+    all-negative words with a positive label (softened complaint or joke)."""
+    if lex_pos > 0 and lex_neg == 0 and gold == "negative":
+        return "B_sarcasm"
+    if lex_neg > 0 and lex_pos == 0 and gold == "positive":
+        return "A_joking_complaint"
+    return None
+
+
 @torch.no_grad()
 def irony_scores(model, tokenizer, texts: list[str], batch_size: int = 64) -> np.ndarray:
     model.eval()
@@ -81,17 +92,10 @@ def main() -> None:
         texts = [r["pp_text"] for r in records]
         golds = [r["label"] for r in records]
 
-        # Flag a tweet when its words point strictly one way and the gold
-        # label points the other: all-positive words with a negative label
-        # (sarcasm), or all-negative words with a positive label (joke)
         rows = []
         for idx, (text, gold) in enumerate(zip(texts, golds)):
             p, n = polarity_counts(text, pos, neg)
-            direction = None
-            if p > 0 and n == 0 and gold == "negative":
-                direction = "B_sarcasm"
-            elif n > 0 and p == 0 and gold == "positive":
-                direction = "A_joking_complaint"
+            direction = flag_direction(p, n, gold)
             rows.append({
                 "split": split_name, "idx": idx,
                 "lex_pos": p, "lex_neg": n,

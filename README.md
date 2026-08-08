@@ -29,6 +29,7 @@ results/            Reproducible outputs
   figures/          fig_threshold.png
   metrics/          drift, pragmatic, threshold, bootstrap, selection, contamination
   all_systems/      outputs covering all eight systems (incl. PretrainedTEA, T5)
+tests/              unit tests for the pipeline's helper functions
 requirements.txt    Python dependencies
 ```
 
@@ -103,6 +104,20 @@ it at the repository root so the models land under `checkpoints/<id>-seed<n>/`
 Python 3.11+. PyTorch runs on GPU, Apple MPS or CPU automatically. The
 semantic-drift and irony-flag steps use `sentence-transformers` and
 `cardiffnlp/twitter-roberta-base-irony`, downloaded on demand.
+
+## Tests
+
+Unit tests for the pipeline's helper functions (tokenisation, the polarity
+flag, the metric, the data and checkpoint loaders) live in `tests/`. They run
+in a few seconds and need neither the data nor the checkpoints:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+They do not re-run the experiments. Reproducing the paper's numbers is done by
+running the pipeline (see `pipeline/README.md`).
 
 ## License
 
