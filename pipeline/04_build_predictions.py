@@ -16,12 +16,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from huggingface_hub import snapshot_download
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
     ANALYSIS_DIR,
-    HF_DATA_REPO,
+    data_root,
     PREDS_RAW,
     SEEDS,
     SPLITS,
@@ -68,8 +67,8 @@ def main() -> None:
     ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Load the three test splits with their gold labels
-    data_root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
-    splits = {name: load_split(data_root, rel) for name, rel in SPLITS}
+    root = data_root()
+    splits = {name: load_split(root, rel) for name, rel in SPLITS}
     for name, df in splits.items():
         pos_rate = df["label_id"].mean()
         print(f"  {name}: n={len(df)}  positive_rate={pos_rate:.3f}")
@@ -77,9 +76,9 @@ def main() -> None:
     # For each system and seed, download the checkpoint and predict on every split
     rows = []
     total_start = time.time()
-    for strategy, repo_prefix in SYSTEMS:
+    for strategy, ckpt_id in SYSTEMS:
         for seed in SEEDS:
-            name = f"{repo_prefix}-seed{seed}"
+            name = f"{ckpt_id}-seed{seed}"
             print(f"\n[ {strategy}  seed {seed} ]  {name}")
             t0 = time.time()
             try:

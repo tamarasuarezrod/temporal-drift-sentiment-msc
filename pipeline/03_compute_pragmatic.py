@@ -9,16 +9,14 @@ from __future__ import annotations
 
 import json
 import re
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
-from huggingface_hub import snapshot_download
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
-    HF_DATA_REPO,
+    data_root,
     IRONY_MODEL,
     PRAGMATIC_CSV,
     SPLITS,
@@ -75,7 +73,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(IRONY_MODEL)
     model = AutoModelForSequenceClassification.from_pretrained(IRONY_MODEL).to(DEVICE)
 
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
     frames = []
     for split_name, rel in SPLITS:
         with open(root / rel) as f:

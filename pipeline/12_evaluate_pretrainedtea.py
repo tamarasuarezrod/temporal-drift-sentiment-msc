@@ -14,19 +14,18 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from huggingface_hub import snapshot_download
 from sklearn.metrics import brier_score_loss, f1_score, roc_auc_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from config import HF_DATA_REPO, PARQUET, SEEDS, load_checkpoint
+from config import PARQUET, SEEDS, data_root, load_checkpoint
 
 REPO = Path(__file__).resolve().parents[1]
 OUT = REPO / "results" / "all_systems"
 OUT.mkdir(parents=True, exist_ok=True)
 
 NEW_SYSTEMS = {
-    "S8": "longeval-s8-tea-reweighted",
-    "S10": "longeval-s10-s2backbone-s8mechanism",
+    "S8": "expertaveraging",
+    "S10": "pretrainedtea",
 }
 TEST_SPLITS = [
     ("within", "test/interim_test_2016.json", "label"),
@@ -78,7 +77,7 @@ def run_inference() -> pd.DataFrame:
         print(f"reusing {raw_path}")
         return pd.read_parquet(raw_path)
 
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
     splits = {}
     for name, rel, label_col in TEST_SPLITS + PRACTICE_SPLITS:
         with open(root / rel) as f:

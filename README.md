@@ -32,13 +32,15 @@ results/            Reproducible outputs
 requirements.txt    Python dependencies
 ```
 
-Each system is trained in its own notebook under `strategies/` (run on Kaggle,
-uploading checkpoints to HuggingFace). The `pipeline/` scripts then download
-those checkpoints and reproduce every table and figure in the paper.
+Each system is trained in its own notebook under `strategies/` (run on Kaggle).
+The `pipeline/` scripts then score the trained checkpoints and reproduce every
+table and figure in the paper.
 
 ## Quick start
 
-The fast path runs from the published checkpoints and needs no GPU.
+The pipeline needs two inputs placed locally first (see
+[Data and checkpoints](#data-and-checkpoints)): the LongEval splits under
+`data/` and the checkpoints under `checkpoints/`. No GPU is required.
 
 ```bash
 python -m venv .venv
@@ -48,10 +50,9 @@ pip install -r requirements.txt
 bash pipeline/run_all.sh
 ```
 
-This downloads the data and checkpoints, runs inference on the three test
-splits, rebuilds `results/per_tweet_analysis.parquet`, and regenerates every
-table and figure in the paper. See
-[`pipeline/README.md`](pipeline/README.md) for a step-by-step
+This runs inference on the three test splits, rebuilds
+`results/per_tweet_analysis.parquet`, and regenerates every table and figure in
+the paper. See [`pipeline/README.md`](pipeline/README.md) for a step-by-step
 description of the pipeline.
 
 The `results/` outputs are committed, which lets the tables and figures be
@@ -59,16 +60,20 @@ inspected without running anything.
 
 ## Systems
 
-| System | Family | Checkpoint prefix |
+| System | Family | Checkpoint id |
 |---|---|---|
-| Baseline (val-loss) | — | `longeval-baseline-valloss` |
-| DatePrefix | input tagging | `longeval-s1-date-prefix` |
-| MLMPretrain | encoder pretraining | `longeval-s2-continued-pretraining` |
-| RecencyWeight | recency weighting | `longeval-s3-temporal-reweighting` |
-| TimeLMs | encoder pretraining | `longeval-s6-timelms` |
-| TEA | recency weighting | `longeval-s7-tea` |
-| T5 | generative classification | `longeval-t5-generative` |
-| PretrainedTEA (proposed) | recency + pretraining | `longeval-s10-s2backbone-s8mechanism` |
+| Baseline (val-loss) | — | `baseline` |
+| DatePrefix | input tagging | `dateprefix` |
+| MLMPretrain | encoder pretraining | `mlmpretrain` |
+| RecencyWeight | recency weighting | `recencyweight` |
+| TimeLMs | encoder pretraining | `timelms` |
+| TEA | recency weighting | `tea` |
+| T5 | generative classification | `t5` |
+| PretrainedTEA (proposed) | recency + pretraining | `pretrainedtea` |
+
+Each checkpoint folder is `<id>-seed<n>` (for example `tea-seed1`). The
+recency-weighted expert-averaging ablation (`expertaveraging`) is used in the
+factorial in step 12.
 
 Each system has three seeds (42, 1, 2) and is trained in its own notebook under
 `strategies/`. Reported results are the majority vote across the three seeds. In
@@ -78,16 +83,20 @@ steps 12 and 13.
 
 ## Data and checkpoints
 
-The labelled splits and the trained checkpoints are public on
-[HuggingFace](https://huggingface.co/tamarasuarezrod) and are downloaded
-automatically by the pipeline (no token required). If a checkpoint cannot be
-reached on HuggingFace, the pipeline falls back to a local copy under
-`checkpoints/<name>/`. Download the checkpoints from
-[OneDrive](ONEDRIVE-CHECKPOINTS-URL-PLACEHOLDER) and unzip them there if you
-need them.
+Neither the data nor the checkpoints are stored in this repository. Place both
+locally before running the pipeline.
 
-The underlying tweets come from TM-Senti and the LongEval 2023 shared task.
-Please refer to those sources for their own terms of use.
+**Data.** The evaluation data comes from the LongEval 2023 shared task
+(Task 2), which builds on TM-Senti. It is not redistributed here. Download it
+from the official source and place the splits under `data/` so that
+`data/train_eval/` and `data/test/` hold the JSON files (the pipeline lists the
+expected files and fails early if any are missing). Refer to the source for its
+terms of use: https://clef-longeval-2023.github.io/data/
+
+**Checkpoints.** The trained checkpoints are archived on Zenodo
+(https://doi.org/10.5281/zenodo.21850584). Download `checkpoints.zip` and unzip
+it at the repository root so the models land under `checkpoints/<id>-seed<n>/`
+(for example `checkpoints/tea-seed1/`).
 
 ## Environment
 

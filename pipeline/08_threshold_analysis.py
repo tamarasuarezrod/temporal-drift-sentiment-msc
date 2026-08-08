@@ -12,20 +12,17 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from huggingface_hub import snapshot_download
 from sklearn.metrics import f1_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
     METRICS_DIR,
-    HF_DATA_REPO,
-    HF_USER,
+    data_root,
     PARQUET,
     SEEDS,
     SYSTEM_COLUMN_PREFIX,
+    load_checkpoint,
 )
-
-BASELINE_REPO_PREFIX = "longeval-baseline-valloss"
 PRACTICE_FILE = "train_eval/interim_eval_2016.json"
 
 DEVICE = (
@@ -57,7 +54,7 @@ def macro_f1(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 def main() -> None:
     print(f"Device: {DEVICE}")
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
     with open(root / PRACTICE_FILE) as f:
         practice = pd.DataFrame(json.load(f))
     y_prac = (practice["distant_label"] == "positive").astype(int).to_numpy()
@@ -66,10 +63,10 @@ def main() -> None:
     # Mean positive probability across the three baseline seeds
     probs = []
     for seed in SEEDS:
-        repo = f"{HF_USER}/{BASELINE_REPO_PREFIX}-seed{seed}"
-        print(f"  loading {repo} ...")
-        tok = AutoTokenizer.from_pretrained(repo)
-        model = AutoModelForSequenceClassification.from_pretrained(repo).to(DEVICE)
+        ckpt = f"baseline-seed{seed}"
+        print(f"  loading {ckpt} ...")
+        tok = load_checkpoint(AutoTokenizer, ckpt)
+        model = load_checkpoint(AutoModelForSequenceClassification, ckpt).to(DEVICE)
         probs.append(predict_probs(model, tok, practice["pp_text"].tolist()))
         del model, tok
     prob_prac = np.mean(probs, axis=0)

@@ -33,7 +33,7 @@ def token_hash(norm: str) -> str:
 
 def main() -> None:
     if not UNLABELED_CORPUS.exists():
-        raise SystemExit(f"Missing {UNLABELED_CORPUS}. Run 01_fetch_data.py first.")
+        raise SystemExit(f"Missing {UNLABELED_CORPUS}. See 01_check_data.py and the README.")
 
     # Index every test tweet by its normalised text and its token-set hash
     df = pd.read_parquet(PARQUET)

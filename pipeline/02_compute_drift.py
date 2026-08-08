@@ -12,7 +12,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from huggingface_hub import snapshot_download
 from sentence_transformers import SentenceTransformer
 
 from config import (
@@ -21,7 +20,7 @@ from config import (
     DRIFT_MAX_TWEETS_PER_YEAR,
     DRIFT_MIN_TWEETS_PER_WORD,
     DRIFT_YEARS,
-    HF_DATA_REPO,
+    data_root,
     MINILM_MODEL,
     SPLITS,
     UNLABELED_CORPUS,
@@ -237,7 +236,7 @@ def train_centroid(root: Path, model: SentenceTransformer, cap: int = 20000) -> 
 
 
 def main() -> None:
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
 
     print("Building train vocabulary ...")
     train_vocab = build_train_vocab(root)

@@ -13,14 +13,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from huggingface_hub import snapshot_download
 from scipy.stats import spearmanr
 from sklearn.metrics import f1_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
     METRICS_DIR,
-    HF_DATA_REPO,
+    data_root,
     SEEDS,
     SYSTEMS,
     TABLES_DIR,
@@ -63,7 +62,7 @@ def predict(model, tokenizer, texts: list[str], batch_size: int = 64) -> np.ndar
 
 def main() -> None:
     print(f"Device: {DEVICE}")
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
 
     # Load the two practice sets (distant labels, available before deployment)
     practice = {}
@@ -76,10 +75,10 @@ def main() -> None:
 
     # Majority-vote predictions per system on each practice set
     prac_f1 = {name: {} for name, _ in PRACTICE_FILES}
-    for strategy, repo_prefix in SYSTEMS:
+    for strategy, ckpt_id in SYSTEMS:
         votes = {name: [] for name, _ in PRACTICE_FILES}
         for seed in SEEDS:
-            ckpt = f"{repo_prefix}-seed{seed}"
+            ckpt = f"{ckpt_id}-seed{seed}"
             print(f"[ {strategy}  seed {seed} ]  {ckpt}")
             tokenizer = load_checkpoint(AutoTokenizer, ckpt)
             model = load_checkpoint(AutoModelForSequenceClassification, ckpt).to(DEVICE)

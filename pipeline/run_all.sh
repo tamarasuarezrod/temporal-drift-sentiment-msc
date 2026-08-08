@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 #
 # End-to-end reproduction of every table and figure in the paper. Needs a
-# Python environment with requirements.txt installed. Checkpoints load from
-# HuggingFace (tamarasuarezrod/longeval-*) by default, or from a local
-# checkpoints/ folder as a fallback. See pipeline/README.md.
+# Python environment with requirements.txt installed, the LongEval data under
+# data/, and the checkpoints unzipped under checkpoints/. See pipeline/README.md.
 
 set -euo pipefail
 
@@ -16,8 +15,8 @@ if [[ ! -x "$PYTHON" ]]; then
   exit 1
 fi
 
-echo "==> [01] fetch data"
-"$PYTHON" "$HERE/01_fetch_data.py"
+echo "==> [01] check data"
+"$PYTHON" "$HERE/01_check_data.py"
 
 echo "==> [02] compute drift"
 "$PYTHON" "$HERE/02_compute_drift.py"

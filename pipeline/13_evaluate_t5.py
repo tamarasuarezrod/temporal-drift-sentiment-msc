@@ -13,11 +13,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from huggingface_hub import snapshot_download
 from sklearn.metrics import f1_score, roc_auc_score
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
-from config import HF_DATA_REPO, PARQUET, SEEDS, load_checkpoint
+from config import PARQUET, SEEDS, data_root, load_checkpoint
 
 REPO = Path(__file__).resolve().parents[1]
 OUT = REPO / "results" / "all_systems"
@@ -69,7 +68,7 @@ def t5_pos_prob(model, tokenizer, texts, batch_size=64):
 
 
 def load_splits():
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
     data = {}
     for name, (rel, label_col) in SPLITS.items():
         with open(root / rel) as f:
@@ -85,7 +84,7 @@ def main() -> None:
     preds = {nm: [] for nm in SPLITS}
     probs = {nm: [] for nm in SPLITS}
     for seed in SEEDS:
-        ckpt = f"longeval-t5-generative-seed{seed}"
+        ckpt = f"t5-seed{seed}"
         print(f"[ T5 seed {seed} ] {ckpt}")
         tok = load_checkpoint(AutoTokenizer, ckpt)
         model = load_checkpoint(T5ForConditionalGeneration, ckpt).to(DEVICE)

@@ -3,15 +3,23 @@
 Regenerates every number, table and figure in the paper from scratch, to verify
 the results end to end.
 
-## Two paths
+## Before running
 
-### Fast path (no GPU required)
+Two inputs are not stored in the repository and must be placed locally first.
 
-Runs from the six trained checkpoints already published on
-[HuggingFace](https://huggingface.co/tamarasuarezrod). Downloads the
-data, downloads the checkpoints, runs inference on the three test
-splits, rebuilds the parquet, and regenerates every table and figure in
-the paper.
+- **Data.** Download the LongEval 2023 Task 2 splits from
+  https://clef-longeval-2023.github.io/data/ and place them under `data/` so
+  that `data/train_eval/` and `data/test/` hold the JSON splits (see the file
+  list in `01_check_data.py`). The unlabelled corpus
+  `sample-10k-monthly-120k-yearly.jl` goes in `data/` too, and is only needed
+  by the semantic-drift step.
+- **Checkpoints.** Download `checkpoints.zip` from Zenodo
+  (https://doi.org/10.5281/zenodo.21850584) and unzip it at the repository
+  root so the models land under `checkpoints/<id>-seed<n>/` (for example
+  `checkpoints/tea-seed1/`). Only the inference steps (04, 08, 11, 12, 13) need
+  them.
+
+## Running
 
 ```bash
 python -m venv .venv
@@ -21,38 +29,28 @@ pip install -r requirements.txt
 bash pipeline/run_all.sh
 ```
 
-Outputs land in:
+This checks the data, runs inference on the three test splits, rebuilds the
+parquet, and regenerates every table and figure. Outputs land in:
 - `results/per_tweet_analysis.parquet` (canonical per-tweet predictions)
 - `results/tables/` (dataset, drift and results tables as CSV plus LaTeX-ready fragments)
 - `results/figures/` (the figure used in the paper)
 - `results/metrics/` (drift, threshold, bootstrap, selection and contamination outputs)
 - `results/all_systems/` (the eight-system battery from steps 12 and 13)
 
-### Checkpoints
-
-The scripts download the trained checkpoints from HuggingFace by default. If a
-checkpoint cannot be reached there, they fall back to a local copy under
-`checkpoints/<name>/` (for example
-`checkpoints/longeval-baseline-valloss-seed42/`). If you need the checkpoints,
-download them from [OneDrive](ONEDRIVE-CHECKPOINTS-URL-PLACEHOLDER) and unzip
-them into `checkpoints/`.
-
 ### Retraining from scratch
 
 Each system has a training notebook under `strategies/` (one per subfolder).
 They were run on Kaggle with a T4 GPU and push their checkpoints to
-HuggingFace. Two things are wired to the original account and must be changed
-to retrain under your own:
+HuggingFace. To retrain under your own account:
 
 - The notebooks authenticate with an `HF_TOKEN` stored as a Kaggle secret
   (`UserSecretsClient().get_secret("HF_TOKEN")`). Add your own token as a
   Kaggle secret of that name before running them.
 - The HuggingFace username is hardcoded as `tamarasuarezrod` in each notebook
-  (the upload target) and in `pipeline/config.py` (`HF_USER`, the download
-  source). Change both to your account.
+  (the upload target). Change it to your account.
 
-With those in place, run the notebooks to produce the checkpoints, then run
-the fast path above to reproduce the tables and figures.
+Run the notebooks to produce the checkpoints, place them under `checkpoints/`,
+then run the pipeline to reproduce the tables and figures.
 
 ## Scripts
 
@@ -60,7 +58,7 @@ Called in this order by `run_all.sh`:
 
 | Step | Script | What it does |
 |---|---|---|
-| 01 | `01_fetch_data.py` | Downloads `data/` (labelled splits + unlabelled corpus) from HF |
+| 01 | `01_check_data.py` | Checks that the LongEval splits are present under `data/` |
 | 02 | `02_compute_drift.py` | OOV rate, new-type rate, per-word semantic shift → `drift_metrics.csv` |
 | 03 | `03_compute_pragmatic.py` | Runs `cardiffnlp/twitter-roberta-base-irony` on the three test sets → `pragmatic_flags.csv` |
 | 04 | `04_build_predictions.py` | For each of 6 systems × 3 seeds: loads HF checkpoint, predicts on `within` / `short` / `long`. Writes `preds_raw.parquet` |
@@ -83,20 +81,9 @@ Per-seed F1 scores can be recomputed from `results/preds_raw.parquet`
 (written by `04_build_predictions.py`), which keeps each seed's
 predictions separate. The mean of per-seed F1 scores is a different,
 usually lower, aggregate than the majority-vote F1.
-The six systems currently included are:
-
-- **Baseline** (val-loss early stopping): `tamarasuarezrod/longeval-baseline-valloss-seed{1,2,42}`
-- **DatePrefix**: `tamarasuarezrod/longeval-s1-date-prefix-seed{1,2,42}`
-- **MLMPretrain (continued pretraining)**: `tamarasuarezrod/longeval-s2-continued-pretraining-seed{1,2,42}`
-- **RecencyWeight (temporal reweighting)**: `tamarasuarezrod/longeval-s3-temporal-reweighting-seed{1,2,42}`
-- **TimeLMs**: `tamarasuarezrod/longeval-s6-timelms-seed{1,2,42}`
-- **TEA (temporal experts averaging)**: `tamarasuarezrod/longeval-s7-tea-seed{1,2,42}`
 
 ## Environment
 
-Uses the same `requirements.txt` and `.venv` as the rest of the repo.
-GPU is optional: PyTorch will fall back to MPS (Apple Silicon) or CPU
-automatically. The pragmatic-flag step and semantic-drift step both use
-sentence-transformers, which are installed on demand.
-
-A `HF_TOKEN` is not required for the fast path (all repos are public).
+GPU is optional: PyTorch falls back to MPS (Apple Silicon) or CPU
+automatically. The pragmatic-flag step and the semantic-drift step both use
+sentence-transformers, installed on demand.

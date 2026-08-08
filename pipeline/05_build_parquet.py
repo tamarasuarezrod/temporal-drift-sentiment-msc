@@ -5,15 +5,13 @@ test tweet with majority-vote fields per system."""
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from huggingface_hub import snapshot_download
 
 from config import (
     DRIFT_CSV,
-    HF_DATA_REPO,
+    data_root,
     PARQUET,
     PRAGMATIC_CSV,
     PREDS_RAW,
@@ -24,7 +22,7 @@ from config import (
 
 def load_gold() -> pd.DataFrame:
     """Gold labels and text for the three test splits, keyed by (split, idx)."""
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
     frames = []
     for name, rel in SPLITS:
         with open(root / rel) as f:

@@ -4,16 +4,14 @@ parquet, writing CSVs and a .tex fragment to results/tables/."""
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from huggingface_hub import snapshot_download
 from sklearn.metrics import f1_score
 
 from config import (
     DRIFT_CSV,
-    HF_DATA_REPO,
+    data_root,
     PARQUET,
     SPLITS,
     SYSTEM_COLUMN_PREFIX,
@@ -22,7 +20,7 @@ from config import (
 
 
 def dataset_table() -> pd.DataFrame:
-    root = Path(snapshot_download(repo_id=HF_DATA_REPO, repo_type="dataset"))
+    root = data_root()
     rows = [
         ("Train",           "train_eval/train.json",              "2014-2016", "distant"),
         ("Practice (2016)", "train_eval/interim_eval_2016.json",  "2016",      "distant"),

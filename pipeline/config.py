@@ -1,5 +1,4 @@
-"""Shared paths, HuggingFace repo names and system list for the pipeline.
-"""
+"""Shared paths, data location and system list for the pipeline."""
 
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ ANALYSIS_DIR = REPO_ROOT / "results"
 TABLES_DIR = ANALYSIS_DIR / "tables"
 FIGURES_DIR = ANALYSIS_DIR / "figures"
 METRICS_DIR = ANALYSIS_DIR / "metrics"
+LOCAL_CHECKPOINTS = REPO_ROOT / "checkpoints"
 
 # Canonical per-tweet data stays at the results/ root
 PREDS_RAW = ANALYSIS_DIR / "preds_raw.parquet"
@@ -21,50 +21,63 @@ PARQUET = ANALYSIS_DIR / "per_tweet_analysis.parquet"
 DRIFT_CSV = METRICS_DIR / "drift_metrics.csv"
 PRAGMATIC_CSV = METRICS_DIR / "pragmatic_flags.csv"
 
-HF_DATA_REPO = "tamarasuarezrod/longeval-data"
-
 SPLITS = [
     ("within", "test/interim_test_2016.json"),
     ("short",  "test/interim_test_2018.json"),
     ("long",   "test/interim_test_2021.json"),
 ]
 
-HF_USER = "tamarasuarezrod"
+# Splits the pipeline reads from data/. Download them from LongEval 2023 Task 2
+# (https://clef-longeval-2023.github.io/data/) and place them under data/.
+EXPECTED_DATA = [
+    "train_eval/train.json",
+    "train_eval/interim_eval_2016.json",
+    "train_eval/interim_eval_2018.json",
+    "test/interim_test_2016.json",
+    "test/interim_test_2018.json",
+    "test/interim_test_2021.json",
+]
 
-# Checkpoints load from HuggingFace by default. If that fails, they are read
-# from a local folder instead (see load_checkpoint below and the README).
-LOCAL_CHECKPOINTS = REPO_ROOT / "checkpoints"
+
+def data_root():
+    """Return the local data/ directory, checking the expected splits are there."""
+    missing = [f for f in EXPECTED_DATA if not (DATA_DIR / f).exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Missing data files under data/: " + ", ".join(missing) + ". "
+            "Download the LongEval 2023 Task 2 data from "
+            "https://clef-longeval-2023.github.io/data/ and place the splits "
+            "under data/ (see the README)."
+        )
+    return DATA_DIR
 
 
 def load_checkpoint(loader, name):
-    """Load a model or tokenizer by checkpoint name, trying HuggingFace first.
+    """Load a model or tokenizer for a checkpoint id such as "tea-seed1" from
+    checkpoints/{name}/.
 
-    Tries the repo {HF_USER}/{name}; if it cannot be reached, falls back to a
-    local folder checkpoints/{name}. See the README for where to download the
-    checkpoints if you do not have them locally.
+    Download checkpoints.zip from Zenodo and unzip it at the repository root
+    (see the README) before running the steps that need the checkpoints.
     """
-    try:
-        return loader.from_pretrained(f"{HF_USER}/{name}")
-    except Exception:
-        local = LOCAL_CHECKPOINTS / name
-        if not local.exists():
-            raise FileNotFoundError(
-                f"Could not load {HF_USER}/{name} from HuggingFace and no local "
-                f"copy at {local}. Download the checkpoints (see README) into "
-                f"{LOCAL_CHECKPOINTS}/."
-            )
-        return loader.from_pretrained(str(local))
+    local = LOCAL_CHECKPOINTS / name
+    if not local.exists():
+        raise FileNotFoundError(
+            f"No checkpoint at {local}. Download checkpoints.zip from Zenodo "
+            f"(https://doi.org/10.5281/zenodo.21850584) and unzip it into "
+            f"{LOCAL_CHECKPOINTS}/."
+        )
+    return loader.from_pretrained(str(local))
 
-# The six comparison systems, as (display name, HuggingFace repo prefix). Each
-# seeded checkpoint is f"{HF_USER}/{prefix}-seed{seed}". T5 and PretrainedTEA
-# need different scoring and are handled in 13_evaluate_t5.py and 12_evaluate_pretrainedtea.py
+# The six comparison systems, as (display name, checkpoint id). T5 and
+# PretrainedTEA need different scoring and are handled in 13_evaluate_t5.py and
+# 12_evaluate_pretrainedtea.py.
 SYSTEMS = [
-    ("Baseline",       "longeval-baseline-valloss"),
-    ("DatePrefix",     "longeval-s1-date-prefix"),
-    ("MLMPretrain",    "longeval-s2-continued-pretraining"),
-    ("RecencyWeight",  "longeval-s3-temporal-reweighting"),
-    ("TimeLMs",        "longeval-s6-timelms"),
-    ("TEA",            "longeval-s7-tea"),
+    ("Baseline",       "baseline"),
+    ("DatePrefix",     "dateprefix"),
+    ("MLMPretrain",    "mlmpretrain"),
+    ("RecencyWeight",  "recencyweight"),
+    ("TimeLMs",        "timelms"),
+    ("TEA",            "tea"),
 ]
 
 # Short codes used as column prefixes in the per-tweet parquet
