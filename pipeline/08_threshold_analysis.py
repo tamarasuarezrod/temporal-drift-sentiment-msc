@@ -16,6 +16,9 @@ from sklearn.metrics import f1_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
+    ANALYSIS_DIR,
+    get_device,
+    LABEL2ID,
     METRICS_DIR,
     data_root,
     PARQUET,
@@ -24,14 +27,10 @@ from config import (
     load_checkpoint,
 )
 PRACTICE_FILE = "train_eval/interim_eval_2016.json"
+PROPOSED_RAW = ANALYSIS_DIR / "all_systems" / "proposed_preds_raw.parquet"
 
-DEVICE = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
+DEVICE = get_device()
 
-LABEL2ID = {"negative": 0, "positive": 1}
 
 
 @torch.no_grad()
@@ -52,9 +51,46 @@ def macro_f1(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return f1_score(y_true, y_pred, average="macro", zero_division=0)
 
 
+def pretrainedtea_votes():
+    """Majority-vote positive prediction per (split, idx) for PretrainedTEA,
+    from the cached proposed-method predictions. Returns a Series indexed by
+    (split, idx), or None if the file is not present yet. PretrainedTEA is a
+    discriminative system, so it belongs in the "best strategy" comparison (only
+    T5 is excluded, since it does not threshold the baseline)."""
+    if not PROPOSED_RAW.exists():
+        print(f"  {PROPOSED_RAW} not found; best-strategy excludes PretrainedTEA.")
+        return None
+    p = pd.read_parquet(PROPOSED_RAW)
+    p = p[(p.system == "PretrainedTEA") & (p.split.isin(["within", "short", "long"]))]
+    piv = p.pivot_table(index=["split", "idx"], columns="seed", values="pred")
+    return (piv.sum(axis=1) >= 2).astype(int)
+
+
+def best_strategy(sub: pd.DataFrame, y: np.ndarray, pt_votes) -> tuple[str, float]:
+    """Best macro-F1 among the mitigation strategies on this split: the five
+    literature strategies (from the parquet) plus PretrainedTEA. Baseline and
+    T5 are excluded."""
+    best_strat, best_f1 = None, -1.0
+    for label, prefix in SYSTEM_COLUMN_PREFIX.items():
+        if label == "Baseline":
+            continue
+        pred = (sub[f"{prefix}_pred"] == "positive").astype(int).to_numpy()
+        f1s = macro_f1(y, pred)
+        if f1s > best_f1:
+            best_strat, best_f1 = label, f1s
+    if pt_votes is not None:
+        split = sub["split"].iloc[0]
+        pred = pt_votes.loc[split].reindex(sub["idx"].to_numpy()).to_numpy()
+        f1s = macro_f1(y, pred)
+        if f1s > best_f1:
+            best_strat, best_f1 = "PretrainedTEA", f1s
+    return best_strat, best_f1
+
+
 def main() -> None:
     print(f"Device: {DEVICE}")
     root = data_root()
+    pt_votes = pretrainedtea_votes()
     with open(root / PRACTICE_FILE) as f:
         practice = pd.DataFrame(json.load(f))
     y_prac = (practice["distant_label"] == "positive").astype(int).to_numpy()
@@ -90,15 +126,7 @@ def main() -> None:
         f1_base = macro_f1(y, (prob >= 0.5).astype(int))
         f1_thresh = macro_f1(y, (prob >= best_t).astype(int))
 
-        # Best strategy on this split (excluding baseline)
-        best_strat, best_f1 = None, -1.0
-        for label, prefix in SYSTEM_COLUMN_PREFIX.items():
-            if label == "Baseline":
-                continue
-            pred = (sub[f"{prefix}_pred"] == "positive").astype(int).to_numpy()
-            f1s = macro_f1(y, pred)
-            if f1s > best_f1:
-                best_strat, best_f1 = label, f1s
+        best_strat, best_f1 = best_strategy(sub, y, pt_votes)
 
         gain_strat = best_f1 - f1_base
         gain_thresh = f1_thresh - f1_base
@@ -142,14 +170,7 @@ def main() -> None:
         f1_base = macro_f1(y, (prob >= 0.5).astype(int))
         f1_thresh = macro_f1(y, (prob >= oracle_t).astype(int))
 
-        best_strat, best_f1 = None, -1.0
-        for label, prefix in SYSTEM_COLUMN_PREFIX.items():
-            if label == "Baseline":
-                continue
-            pred = (sub[f"{prefix}_pred"] == "positive").astype(int).to_numpy()
-            f1s = macro_f1(y, pred)
-            if f1s > best_f1:
-                best_strat, best_f1 = label, f1s
+        best_strat, best_f1 = best_strategy(sub, y, pt_votes)
 
         gain_strat = best_f1 - f1_base
         gain_thresh = f1_thresh - f1_base
@@ -184,14 +205,7 @@ def main() -> None:
             key=lambda x: x[1],
         )
 
-        best_strat, best_f1 = None, -1.0
-        for label, prefix in SYSTEM_COLUMN_PREFIX.items():
-            if label == "Baseline":
-                continue
-            pred = (sub[f"{prefix}_pred"] == "positive").astype(int).to_numpy()
-            f1s = macro_f1(y, pred)
-            if f1s > best_f1:
-                best_strat, best_f1 = label, f1s
+        best_strat, best_f1 = best_strategy(sub, y, pt_votes)
 
         gain_strat = best_f1 - f1_base
         gain_thresh = f1_thresh - f1_base

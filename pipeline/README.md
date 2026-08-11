@@ -59,10 +59,10 @@ Called in this order by `run_all.sh`:
 | Step | Script | What it does |
 |---|---|---|
 | 01 | `01_check_data.py` | Checks that the LongEval splits are present under `data/` |
-| 02 | `02_compute_drift.py` | OOV rate, new-type rate, per-word semantic shift → `drift_metrics.csv` |
-| 03 | `03_compute_pragmatic.py` | Runs `cardiffnlp/twitter-roberta-base-irony` on the three test sets → `pragmatic_flags.csv` |
+| 02 | `02_compute_drift.py` | OOV rate, new-type rate, per-word contextual shift, and a word-level real-drift probe → `drift_metrics.csv`, `drift_summary.csv`, `real_drift_check.csv` |
+| 03 | `03_compute_polarity_mismatch.py` | Flags tweets whose surface word polarity contradicts the gold label (Hu & Liu lexicon; irony model as a corroboration column) → `polarity_mismatch_flags.csv` |
 | 04 | `04_build_predictions.py` | For each of 6 systems × 3 seeds: loads HF checkpoint, predicts on `within` / `short` / `long`. Writes `preds_raw.parquet` |
-| 05 | `05_build_parquet.py` | Aggregates per-seed predictions by tweet, merges with drift + pragmatic → `per_tweet_analysis.parquet` |
+| 05 | `05_build_parquet.py` | Aggregates per-seed predictions by tweet, merges with drift + polarity-mismatch → `per_tweet_analysis.parquet` |
 | 06 | `06_regen_tables.py` | Recomputes the dataset, drift and results tables from the parquet |
 | 07 | `07_regen_figures.py` | Regenerates the paper figure (threshold decomposition) |
 | 08 | `08_threshold_analysis.py` | Threshold decomposition: practice-tuned, oracle-half, and in-sample per-period sweeps |
@@ -71,6 +71,7 @@ Called in this order by `run_all.sh`:
 | 11 | `11_practice_selection.py` | Practice-set macro-F1 against test macro-F1 (selection trap) |
 | 12 | `12_evaluate_pretrainedtea.py` | Scores PretrainedTEA and the averaging-only ablation, and the 2×2 factorial, into `results/all_systems/` |
 | 13 | `13_evaluate_t5.py` | Scores the generative T5 system (its own generation-likelihood path) into `results/all_systems/` |
+| 14 | `14_always_fail_residual.py` | Always-fail / always-correct residual across the eight systems → `residual.csv` |
 
 Each script is independently runnable (assuming its inputs are on disk).
 
@@ -85,5 +86,5 @@ usually lower, aggregate than the majority-vote F1.
 ## Environment
 
 GPU is optional: PyTorch falls back to MPS (Apple Silicon) or CPU
-automatically. The pragmatic-flag step and the semantic-drift step both use
+automatically. The polarity-mismatch step and the semantic-drift step both use
 sentence-transformers, installed on demand.

@@ -1,9 +1,10 @@
-"""Evaluate the proposed method (PretrainedTEA) and its ablations.
+"""Evaluate the proposed method (PretrainedTEA).
 
-Scores the averaging-only (S8) and full (S10) systems and writes the numbers
-behind the 2x2 factorial to results/all_systems/: the factorial table, paired
-bootstrap CIs, the metric panel, drift-severity, residual, pragmatic and
-practice-set breakdowns, and the comparison against the LongEval 2023 teams."""
+Scores PretrainedTEA (annual experts on the MLM backbone) and writes the numbers
+behind the 2x2 factorial to results/all_systems/: the factorial table (with TEA
+as the averaging-only cell), paired bootstrap CIs, the metric panel,
+drift-severity, polarity-mismatch and practice-set breakdowns, and the
+comparison against the LongEval 2023 teams."""
 
 from __future__ import annotations
 
@@ -17,32 +18,16 @@ import torch
 from sklearn.metrics import brier_score_loss, f1_score, roc_auc_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-from config import PARQUET, SEEDS, data_root, load_checkpoint
+from config import (
+    LABEL2ID, PARQUET, PRACTICE_SPLITS, PROPOSED_SYSTEMS, SEEDS, TEST_SPLITS,
+    data_root, get_device, load_checkpoint,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 OUT = REPO / "results" / "all_systems"
 OUT.mkdir(parents=True, exist_ok=True)
 
-NEW_SYSTEMS = {
-    "S8": "expertaveraging",
-    "S10": "pretrainedtea",
-}
-TEST_SPLITS = [
-    ("within", "test/interim_test_2016.json", "label"),
-    ("short", "test/interim_test_2018.json", "label"),
-    ("long", "test/interim_test_2021.json", "label"),
-]
-PRACTICE_SPLITS = [
-    ("practice_2016", "train_eval/interim_eval_2016.json", "distant_label"),
-    ("practice_2018", "train_eval/interim_eval_2018.json", "distant_label"),
-]
-LABEL2ID = {"negative": 0, "positive": 1}
-
-DEVICE = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
+DEVICE = get_device()
 
 # Table 7 of the LNCS overview (evaluation phase)
 PARTICIPANTS = {
@@ -87,7 +72,7 @@ def run_inference() -> pd.DataFrame:
 
     rows = []
     t0 = time.time()
-    for sys_key, prefix in NEW_SYSTEMS.items():
+    for sys_key, prefix in PROPOSED_SYSTEMS.items():
         for seed in SEEDS:
             ckpt = f"{prefix}-seed{seed}"
             print(f"[ {sys_key} seed {seed} ] {ckpt}")
@@ -157,7 +142,7 @@ def main() -> None:
     agg = aggregate(raw)
 
     canon = pd.read_parquet(PARQUET)
-    old_systems = ["baseline", "S1", "S2", "S3", "S6", "S7"]
+    old_systems = ["baseline", "DatePrefix", "MLMPretrain", "RecencyWeight", "TimeLMs", "TEA"]
     splits = ["within", "short", "long"]
 
     # Convenience accessors over the canonical parquet
@@ -166,7 +151,9 @@ def main() -> None:
         y = (d.gold == "positive").astype(int).to_numpy()
         return d, y
 
-    # Factorial table: baseline / S2 / S8 / S10 per split
+    # Factorial table: baseline / MLMPretrain / TEA / PretrainedTEA per split.
+    # TEA is the averaging-only cell (annual experts on the base backbone);
+    # PretrainedTEA is the same annual averaging on the MLM backbone.
     fact_rows = []
     f1_all: dict[tuple[str, str], float] = {}
     votes_all: dict[tuple[str, str], np.ndarray] = {}
@@ -178,20 +165,21 @@ def main() -> None:
             votes_all[(s, sp)] = (d[f"{s}_pred"] == "positive").astype(int).to_numpy()
             probs_all[(s, sp)] = d[f"{s}_prob_pos"].to_numpy()
             f1_all[(s, sp)] = mf1(y, votes_all[(s, sp)])
-        for s in NEW_SYSTEMS:
+        for s in PROPOSED_SYSTEMS:
             a = agg[(s, sp)]
             votes_all[(s, sp)] = a["vote"].to_numpy()
             probs_all[(s, sp)] = a["prob"].to_numpy()
             f1_all[(s, sp)] = mf1(y, votes_all[(s, sp)])
 
     for sp in splits:
-        b, s2, s8, s10 = (f1_all[(k, sp)] for k in ["baseline", "S2", "S8", "S10"])
+        b, s2, tea, s10 = (f1_all[(k, sp)] for k in
+                          ["baseline", "MLMPretrain", "TEA", "PretrainedTEA"])
         fact_rows.append({
-            "split": sp, "baseline": round(b, 4), "S2_backbone": round(s2, 4),
-            "S8_mechanism": round(s8, 4), "S10_both": round(s10, 4),
+            "split": sp, "baseline": round(b, 4), "backbone": round(s2, 4),
+            "mechanism": round(tea, 4), "both": round(s10, 4),
             "backbone_effect_pp": round(100 * (s2 - b), 2),
-            "mechanism_effect_pp": round(100 * (s8 - b), 2),
-            "interaction_pp": round(100 * ((s10 - s8) - (s2 - b)), 2),
+            "mechanism_effect_pp": round(100 * (tea - b), 2),
+            "interaction_pp": round(100 * ((s10 - tea) - (s2 - b)), 2),
         })
     pd.DataFrame(fact_rows).to_csv(OUT / "factorial.csv", index=False)
     print("factorial.csv done")
@@ -201,11 +189,10 @@ def main() -> None:
     for sp in splits:
         _, y = canon_split(sp)
         for a, b, label in [
-            ("S10", "baseline", "S10 vs baseline"),
-            ("S10", "S2", "S10 vs S2 (mechanism on top of backbone)"),
-            ("S10", "S8", "S10 vs S8 (backbone on top of mechanism)"),
-            ("S10", "S7", "S10 vs S7 (TEA)"),
-            ("S8", "baseline", "S8 vs baseline"),
+            ("PretrainedTEA", "baseline", "PretrainedTEA vs baseline"),
+            ("PretrainedTEA", "MLMPretrain", "PretrainedTEA vs MLMPretrain (mechanism on top of backbone)"),
+            ("PretrainedTEA", "TEA", "PretrainedTEA vs TEA (backbone on top of mechanism)"),
+            ("TEA", "baseline", "TEA vs baseline (averaging alone)"),
         ]:
             d, lo, hi = paired_bootstrap(y, votes_all[(a, sp)], votes_all[(b, sp)])
             comps.append({
@@ -218,12 +205,12 @@ def main() -> None:
 
     # Metric panel: F1 / AUROC / ECE / Brier / seed disagreement
     panel = []
-    all_systems = old_systems + list(NEW_SYSTEMS)
+    all_systems = old_systems + list(PROPOSED_SYSTEMS)
     for sp in splits:
         d, y = canon_split(sp)
         for s in all_systems:
             prob = probs_all[(s, sp)]
-            if s in NEW_SYSTEMS:
+            if s in PROPOSED_SYSTEMS:
                 dis = agg[(s, sp)]["seed_disagree"]
             else:
                 dis = float((d[f"{s}_n_correct"] % 3 != 0).mean())
@@ -238,7 +225,7 @@ def main() -> None:
     pd.DataFrame(panel).to_csv(OUT / "metric_panel.csv", index=False)
     print("metric_panel.csv done")
 
-    # Drift-severity quintiles on long, incl. S8 / S10
+    # Drift-severity quintiles on long, incl. PretrainedTEA
     d, y = canon_split("long")
     score = d["oov_frac"].fillna(0) + d["sem_dist"].fillna(0)
     q = pd.qcut(score, 5, labels=[1, 2, 3, 4, 5])
@@ -253,45 +240,40 @@ def main() -> None:
     pd.DataFrame(sev).to_csv(OUT / "severity.csv", index=False)
     print("severity.csv done")
 
-    # Residual: always-fail with 8 systems x 3 seeds (24 predictions)
-    res = []
-    for sp in splits:
-        d, y = canon_split(sp)
-        ncorr6 = sum(d[f"{s}_n_correct"] for s in old_systems).to_numpy()
-        ncorr8 = ncorr6 + agg[("S8", sp)]["n_correct"].to_numpy() \
-                        + agg[("S10", sp)]["n_correct"].to_numpy()
-        af6 = ncorr6 == 0
-        af8 = ncorr8 == 0
-        cracked = int(af6.sum() - af8.sum())
-        s10_fixes = int(((agg[("S10", sp)]["n_correct"].to_numpy() > 0) & af6).sum())
-        res.append({
-            "split": sp,
-            "always_fail_6sys_pct": round(100 * af6.mean(), 1),
-            "always_fail_8sys_pct": round(100 * af8.mean(), 1),
-            "cracked_by_S8_or_S10": cracked,
-            "old_af_where_S10_correct_any_seed": s10_fixes,
+    # Composite base on long (T5 row added in stage 13): the four robustness
+    # measures per system, from the metric panel and the Q5 severity row.
+    q5row = sev[-1]  # q == 5
+    comp_rows = []
+    for s in all_systems:
+        r = next(p for p in panel if p["system"] == s and p["split"] == "long")
+        comp_rows.append({
+            "system": s,
+            "f1": r["f1"],
+            "auroc": r["auroc"],
+            "stability": round(1 - r["seed_disagree"], 4),
+            "q5_gain": 0.0 if s == "baseline" else q5row[s],
         })
-    pd.DataFrame(res).to_csv(OUT / "residual.csv", index=False)
-    print("residual.csv done")
+    pd.DataFrame(comp_rows).to_csv(OUT / "composite.csv", index=False)
+    print("composite.csv (base) done")
 
-    # Pragmatic subset per system per split
-    prag_rows = []
+    # Polarity-mismatch subset per system per split
+    pm_rows = []
     for sp in splits:
         d, y = canon_split(sp)
-        m = d["pragmatic"].fillna(0).astype(int).to_numpy() == 1
+        m = d["polarity_mismatch"].fillna(0).astype(int).to_numpy() == 1
         for s in all_systems:
             v = votes_all[(s, sp)]
-            prag_rows.append({
+            pm_rows.append({
                 "system": s, "split": sp,
-                "f1_pragmatic": round(mf1(y[m], v[m]), 4),
+                "f1_polarity_mismatch": round(mf1(y[m], v[m]), 4),
                 "f1_rest": round(mf1(y[~m], v[~m]), 4),
             })
-    pd.DataFrame(prag_rows).to_csv(OUT / "pragmatic.csv", index=False)
-    print("pragmatic.csv done")
+    pd.DataFrame(pm_rows).to_csv(OUT / "polarity_mismatch.csv", index=False)
+    print("polarity_mismatch.csv done")
 
-    # Selection trap re-test: S8/S10 practice scores
+    # Selection trap re-test: PretrainedTEA practice scores
     sel_rows = []
-    for s in NEW_SYSTEMS:
+    for s in PROPOSED_SYSTEMS:
         row = {"system": s}
         for prac in ["practice_2016", "practice_2018"]:
             a = agg[(s, prac)]
@@ -306,10 +288,10 @@ def main() -> None:
     part = [{"system": k, "within": v[0], "short": v[1], "long": v[2],
              "source": "Table 7, LNCS overview"} for k, v in PARTICIPANTS.items()]
     part.append({
-        "system": "PretrainedTEA (S10, ours)",
-        "within": round(f1_all[("S10", "within")], 4),
-        "short": round(f1_all[("S10", "short")], 4),
-        "long": round(f1_all[("S10", "long")], 4),
+        "system": "PretrainedTEA (ours)",
+        "within": round(f1_all[("PretrainedTEA", "within")], 4),
+        "short": round(f1_all[("PretrainedTEA", "short")], 4),
+        "long": round(f1_all[("PretrainedTEA", "long")], 4),
         "source": "this work, majority vote over 3 seeds",
     })
     pd.DataFrame(part).to_csv(OUT / "participants.csv", index=False)

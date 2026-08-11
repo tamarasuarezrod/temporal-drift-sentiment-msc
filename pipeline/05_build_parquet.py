@@ -13,7 +13,7 @@ from config import (
     DRIFT_CSV,
     data_root,
     PARQUET,
-    PRAGMATIC_CSV,
+    POLARITY_MISMATCH_CSV,
     PREDS_RAW,
     SPLITS,
     SYSTEM_COLUMN_PREFIX,
@@ -90,13 +90,13 @@ def main() -> None:
     else:
         print(f"  (skipping drift merge, {DRIFT_CSV} not found)")
 
-    # Merge pragmatic flag
-    if PRAGMATIC_CSV.exists():
-        prag = pd.read_csv(PRAGMATIC_CSV)
+    # Merge polarity-mismatch flag
+    if POLARITY_MISMATCH_CSV.exists():
+        prag = pd.read_csv(POLARITY_MISMATCH_CSV)
         df = df.merge(prag, on=["split", "idx"], how="left")
-        print(f"Merged pragmatic flags ({PRAGMATIC_CSV})")
+        print(f"Merged polarity-mismatch flags ({POLARITY_MISMATCH_CSV})")
     else:
-        print(f"  (skipping pragmatic merge, {PRAGMATIC_CSV} not found)")
+        print(f"  (skipping polarity-mismatch merge, {POLARITY_MISMATCH_CSV} not found)")
 
     # Save the canonical per-tweet table that the rest of the pipeline reads
     PARQUET.parent.mkdir(parents=True, exist_ok=True)

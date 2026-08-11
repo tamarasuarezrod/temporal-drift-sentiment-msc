@@ -18,6 +18,8 @@ from sklearn.metrics import f1_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
+    get_device,
+    LABEL2ID,
     METRICS_DIR,
     data_root,
     SEEDS,
@@ -37,13 +39,8 @@ PAIRINGS = [
     ("practice_2018", "long"),
 ]
 
-LABEL2ID = {"negative": 0, "positive": 1}
 
-DEVICE = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
+DEVICE = get_device()
 
 
 @torch.no_grad()

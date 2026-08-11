@@ -3,7 +3,7 @@
 Positive and negative words are counted with the Hu & Liu (2004) lexicon, a
 tweet is flagged when the words point one way and the label the other. An
 irony-model probability is stored alongside for reference. Writes
-results/metrics/pragmatic_flags.csv."""
+results/metrics/polarity_mismatch_flags.csv."""
 
 from __future__ import annotations
 
@@ -16,17 +16,14 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
+    get_device,
     data_root,
     IRONY_MODEL,
-    PRAGMATIC_CSV,
+    POLARITY_MISMATCH_CSV,
     SPLITS,
 )
 
-DEVICE = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
+DEVICE = get_device()
 
 TOKEN_RE = re.compile(r"[a-z']+")
 
@@ -99,23 +96,23 @@ def main() -> None:
             rows.append({
                 "split": split_name, "idx": idx,
                 "lex_pos": p, "lex_neg": n,
-                "pragmatic": int(direction is not None),
-                "pragmatic_dir": direction,
+                "polarity_mismatch": int(direction is not None),
+                "polarity_mismatch_dir": direction,
             })
         df = pd.DataFrame(rows)
         df["irony_prob"] = irony_scores(model, tokenizer, texts)
 
-        rate = df["pragmatic"].mean() * 100
-        irony_in_flagged = df.loc[df["pragmatic"] == 1, "irony_prob"].mean()
+        rate = df["polarity_mismatch"].mean() * 100
+        irony_in_flagged = df.loc[df["polarity_mismatch"] == 1, "irony_prob"].mean()
         irony_overall = df["irony_prob"].mean()
-        print(f"  {split_name}: pragmatic={rate:.1f}%  "
+        print(f"  {split_name}: polarity_mismatch={rate:.1f}%  "
               f"(irony prob: flagged {irony_in_flagged:.3f} vs overall {irony_overall:.3f})")
         frames.append(df)
 
     out = pd.concat(frames, ignore_index=True)
-    PRAGMATIC_CSV.parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(PRAGMATIC_CSV, index=False)
-    print(f"\nWrote {PRAGMATIC_CSV}  ({len(out)} rows)")
+    POLARITY_MISMATCH_CSV.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(POLARITY_MISMATCH_CSV, index=False)
+    print(f"\nWrote {POLARITY_MISMATCH_CSV}  ({len(out)} rows)")
 
 
 if __name__ == "__main__":

@@ -13,12 +13,12 @@ N_BOOT = 5000
 
 COMPARISONS = [
     # (split, system A prefix, system B prefix, label)
-    ("within", "S7", "baseline", "TEA vs Baseline (within winner)"),
-    ("short",  "S2", "baseline", "MLMPretrain vs Baseline (short winner)"),
-    ("long",   "S7", "baseline", "TEA vs Baseline (long winner)"),
-    ("long",   "S7", "S3",       "TEA vs RecencyWeight (top tier, long)"),
-    ("within", "S7", "S3",       "TEA vs RecencyWeight (top tier, within)"),
-    ("short",  "S2", "S7",       "MLMPretrain vs TEA (top tier, short)"),
+    ("within", "TEA",         "baseline",      "TEA vs Baseline (top literature, within)"),
+    ("short",  "MLMPretrain", "baseline",      "MLMPretrain vs Baseline (top literature, short)"),
+    ("long",   "TEA",         "baseline",      "TEA vs Baseline (top literature, long)"),
+    ("long",   "TEA",         "RecencyWeight", "TEA vs RecencyWeight (top tier, long)"),
+    ("within", "TEA",         "RecencyWeight", "TEA vs RecencyWeight (top tier, within)"),
+    ("short",  "MLMPretrain", "TEA",           "MLMPretrain vs TEA (top tier, short)"),
 ]
 
 

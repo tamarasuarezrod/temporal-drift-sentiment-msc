@@ -21,8 +21,8 @@ echo "==> [01] check data"
 echo "==> [02] compute drift"
 "$PYTHON" "$HERE/02_compute_drift.py"
 
-echo "==> [03] compute pragmatic flags"
-"$PYTHON" "$HERE/03_compute_pragmatic.py"
+echo "==> [03] compute polarity-mismatch flags"
+"$PYTHON" "$HERE/03_compute_polarity_mismatch.py"
 
 echo "==> [04] build per-model predictions (heavy)"
 "$PYTHON" "$HERE/04_build_predictions.py"
@@ -33,14 +33,18 @@ echo "==> [05] build canonical parquet"
 echo "==> [06] regenerate tables"
 "$PYTHON" "$HERE/06_regen_tables.py"
 
-echo "==> [08] threshold analysis"
-"$PYTHON" "$HERE/08_threshold_analysis.py"
-
-echo "==> [12] PretrainedTEA analysis (proposed method + averaging-only)"
+echo "==> [12] PretrainedTEA analysis (proposed method)"
 "$PYTHON" "$HERE/12_evaluate_pretrainedtea.py"
 
 echo "==> [13] T5 analysis"
 "$PYTHON" "$HERE/13_evaluate_t5.py"
+
+echo "==> [14] always-fail residual"
+"$PYTHON" "$HERE/14_always_fail_residual.py"
+
+# 08 runs after 12 so the best-strategy comparison can include PretrainedTEA.
+echo "==> [08] threshold analysis"
+"$PYTHON" "$HERE/08_threshold_analysis.py"
 
 # 07 runs after 08 because the threshold figure consumes its CSVs.
 echo "==> [07] regenerate figure"

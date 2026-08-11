@@ -19,6 +19,8 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
+    get_device,
+    LABEL2ID,
     ANALYSIS_DIR,
     data_root,
     PREDS_RAW,
@@ -28,14 +30,9 @@ from config import (
     load_checkpoint,
 )
 
-LABEL2ID = {"negative": 0, "positive": 1}
 ID2LABEL = {v: k for k, v in LABEL2ID.items()}
 
-DEVICE = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
+DEVICE = get_device()
 print(f"Device: {DEVICE}")
 
 

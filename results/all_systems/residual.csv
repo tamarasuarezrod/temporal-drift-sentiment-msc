@@ -1,4 +1,5 @@
-split,always_fail_6sys_pct,always_fail_8sys_pct,cracked_by_S8_or_S10,old_af_where_S10_correct_any_seed
-within,12.1,12.1,0,0
-short,16.4,16.3,1,0
-long,15.4,15.3,1,1
+split,n,always_fail_n,always_fail_pct,always_correct_n,always_correct_pct,af_gold_pos_pct,baseline_conf_af,baseline_conf_ac,polarity_mismatch_rate_af,polarity_mismatch_rate_all,polarity_mismatch_enrichment
+within,908,99,10.9,485,53.4,76.8,0.894,0.892,26.3,11.2,2.34
+short,908,143,15.7,433,47.7,59.4,0.878,0.884,42.0,16.7,2.51
+long,908,127,14.0,415,45.7,68.5,0.884,0.882,34.6,15.2,2.28
+pooled,2724,369,13.5,1333,48.9,67.2,0.884,0.886,35.2,14.4,2.45

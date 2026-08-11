@@ -16,7 +16,10 @@ import torch
 from sklearn.metrics import f1_score, roc_auc_score
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
-from config import PARQUET, SEEDS, data_root, load_checkpoint
+from config import (
+    PARQUET, PRACTICE_SPLITS, SEEDS, TEST_SPLITS, data_root, get_device,
+    load_checkpoint,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 OUT = REPO / "results" / "all_systems"
@@ -24,20 +27,9 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 PREFIX = "sentiment: "
 LABELS = ["negative", "positive"]
-# baseline + five RoBERTa strategies. T5 is the sixth comparison system
-COMPARISON = ["baseline", "S1", "S2", "S3", "S6", "S7"]
-SPLITS = {  # name -> (rel path, label column)
-    "practice_2016": ("train_eval/interim_eval_2016.json", "distant_label"),
-    "practice_2018": ("train_eval/interim_eval_2018.json", "distant_label"),
-    "within": ("test/interim_test_2016.json", "label"),
-    "short": ("test/interim_test_2018.json", "label"),
-    "long": ("test/interim_test_2021.json", "label"),
-}
-DEVICE = (
-    "cuda" if torch.cuda.is_available()
-    else "mps" if torch.backends.mps.is_available()
-    else "cpu"
-)
+# name -> (rel path, label column), practice sets first
+SPLITS = {name: (rel, lc) for name, rel, lc in PRACTICE_SPLITS + TEST_SPLITS}
+DEVICE = get_device()
 
 
 def mf1(y, p):
@@ -128,41 +120,6 @@ def main() -> None:
     }
     print(f"\n=== T5 long composite metrics ===\n  {long_metrics}")
 
-    # Always-fail over the seven comparison systems (baseline + 6 strategies
-    # incl. T5), aligned to the parquet, plus the long residual stats
-    pt = canon.reset_index(drop=True).copy()
-    t5nc = np.zeros(len(pt), dtype=int)
-    for nm in ["within", "short", "long"]:
-        idx = pt.index[pt.split == nm]
-        # T5 n_correct aligned by split order (parquet is sorted by idx per split)
-        order = pt.loc[idx].sort_values("idx").index
-        t5nc[order] = t5[nm]["n_correct"]
-    pt["T5_n_correct"] = t5nc
-
-    def always_fail(df, systems):
-        fail = np.ones(len(df), dtype=bool)
-        for s in systems:
-            fail &= (df[f"{s}_n_correct"] == 0).to_numpy()
-        return fail
-
-    print("\n=== always-fail rates ===")
-    for label, systems in [("6 comparison systems", COMPARISON),
-                           ("7 comparison systems (+T5)", COMPARISON + ["T5"])]:
-        rates = {sp: 100 * always_fail(pt[pt.split == sp], systems).mean() for sp in ["within", "short", "long"]}
-        counts = {sp: int(always_fail(pt[pt.split == sp], systems).sum()) for sp in ["within", "short", "long"]}
-        print(f"  {label}: " + "  ".join(f"{sp} {rates[sp]:.1f}% ({counts[sp]})" for sp in rates))
-
-    dl = pt[pt.split == "long"].reset_index(drop=True)
-    fail7 = always_fail(dl, COMPARISON + ["T5"])
-    afset = dl[fail7]
-    ac = np.ones(len(dl), dtype=bool)
-    for s in COMPARISON + ["T5"]:
-        ac &= (dl[f"{s}_n_correct"] == 3).to_numpy()
-    print("\n=== long always-fail set (7 systems) ===")
-    print(f"  n={len(afset)}  gold-positive={100*(afset.gold=='positive').mean():.1f}%")
-    print(f"  baseline mean conf: always-fail={afset.baseline_conf.mean():.3f}  "
-          f"always-correct={dl[ac].baseline_conf.mean():.3f}")
-
     # Write t5.csv and upsert the T5 row into composite.csv
     t5_summary = {
         "within_mean": round(t5["within"]["mean_f1"], 4),
@@ -207,8 +164,8 @@ def main() -> None:
     comp = comp[comp.system != "T5"]
     t5_row = {"system": "T5", **long_metrics}
     comp = pd.concat([comp, pd.DataFrame([t5_row])], ignore_index=True)
-    # recompute the composite column over the eight deployment systems (excl. S8 ablation)
-    order = ["baseline", "S1", "S2", "S3", "S6", "S7", "S10", "T5"]
+    # recompute the composite column over the eight presented systems
+    order = ["baseline", "DatePrefix", "MLMPretrain", "RecencyWeight", "TimeLMs", "TEA", "PretrainedTEA", "T5"]
     sub = comp.set_index("system").loc[order, ["f1", "auroc", "stability", "q5_gain"]]
     norm = (sub - sub.min()) / (sub.max() - sub.min())
     tot = norm.sum(1)

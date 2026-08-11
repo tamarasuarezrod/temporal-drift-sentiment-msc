@@ -27,7 +27,7 @@ results/            Reproducible outputs
                     per_tweet_analysis.parquet, preds_raw.parquet (canonical data)
   tables/           dataset, drift and results tables as CSV (+ LaTeX fragment)
   figures/          fig_threshold.png
-  metrics/          drift, pragmatic, threshold, bootstrap, selection, contamination
+  metrics/          drift, polarity-mismatch, threshold, bootstrap, selection, contamination
   all_systems/      outputs covering all eight systems (incl. PretrainedTEA, T5)
 tests/              unit tests for the pipeline's helper functions
 requirements.txt    Python dependencies

@@ -17,6 +17,7 @@ from sentence_transformers import SentenceTransformer
 from config import (
     DRIFT_CSV,
     DRIFT_EMBED_BATCH,
+    DRIFT_LABEL_MIN_FREQ,
     DRIFT_MAX_TWEETS_PER_YEAR,
     DRIFT_MIN_TWEETS_PER_WORD,
     DRIFT_YEARS,
@@ -210,6 +211,62 @@ def semantic_summary(embeddings: dict[int, np.ndarray],
     return pd.DataFrame(rows)
 
 
+def label_conditional_drift(root: Path) -> pd.DataFrame:
+    """Real-drift probe: does P(positive | word), the label distribution
+    conditioned on a word, change between periods? For each content word frequent
+    enough in both within and a later split, a two-proportion z-test compares
+    the positive rate; we report how many shifts are significant at p<0.05 and
+    how many survive a Bonferroni correction. Power is limited by the small
+    (908-tweet) test splits."""
+    from scipy.stats import norm
+
+    def load(rel):
+        with open(root / rel) as f:
+            recs = json.load(f)
+        return [(set(tokenize(r["pp_text"], drop_stop=True)),
+                 1 if r["label"] == "positive" else 0) for r in recs]
+
+    def counts(data):
+        cnt: dict[str, int] = defaultdict(int)
+        pos: dict[str, int] = defaultdict(int)
+        for toks, y in data:
+            for w in toks:
+                cnt[w] += 1
+                pos[w] += y
+        return {w: (pos[w], cnt[w]) for w in cnt if cnt[w] >= DRIFT_LABEL_MIN_FREQ}
+
+    within = counts(load("test/interim_test_2016.json"))
+    rows = []
+    for name, rel in [("short", "test/interim_test_2018.json"),
+                      ("long", "test/interim_test_2021.json")]:
+        later = counts(load(rel))
+        common = sorted(set(within) & set(later))
+        if not common:
+            continue
+        diffs, pvals = [], []
+        for w in common:
+            aw, nw = within[w]
+            al, nl = later[w]
+            pw, pl = aw / nw, al / nl
+            pool = (aw + al) / (nw + nl)
+            se = np.sqrt(pool * (1 - pool) * (1 / nw + 1 / nl))
+            z = (pw - pl) / se if se > 0 else 0.0
+            pvals.append(2 * (1 - norm.cdf(abs(z))))
+            diffs.append(abs(pw - pl))
+        diffs, pvals = np.array(diffs), np.array(pvals)
+        n = len(common)
+        rows.append({
+            "pair": f"within->{name}",
+            "n_words": n,
+            "min_freq": DRIFT_LABEL_MIN_FREQ,
+            "mean_abs_delta": round(float(diffs.mean()), 3),
+            "sig_p05": int((pvals < 0.05).sum()),
+            "sig_p05_pct": round(100 * float((pvals < 0.05).mean()), 1),
+            "bonferroni_survivors": int((pvals < 0.05 / n).sum()),
+        })
+    return pd.DataFrame(rows)
+
+
 def per_tweet_semantic_distance(root: Path, model: SentenceTransformer,
                                 train_centroid: np.ndarray) -> pd.DataFrame:
     """Cosine distance of each test tweet to the training centroid (the
@@ -268,6 +325,14 @@ def main() -> None:
             print(summary.round(3).to_string(index=False))
     else:
         print("Skipped semantic per-word shift (no unlabelled corpus).")
+
+    print("\nProbing real drift (label-conditional per word) ...")
+    rdc = label_conditional_drift(root)
+    if not rdc.empty:
+        out = DRIFT_CSV.parent / "real_drift_check.csv"
+        rdc.to_csv(out, index=False)
+        print(f"Wrote {out}")
+        print(rdc.to_string(index=False))
 
 
 if __name__ == "__main__":
