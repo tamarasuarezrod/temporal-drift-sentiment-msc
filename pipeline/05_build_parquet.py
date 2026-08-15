@@ -1,6 +1,6 @@
 """Aggregate the per-seed predictions, drift metrics and flags into the
 canonical per-tweet table (results/per_tweet_analysis.parquet), one row per
-test tweet with majority-vote fields per system."""
+test tweet with soft-vote fields per system."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ def aggregate_predictions(raw: pd.DataFrame, prefix_map: dict[str, str]) -> pd.D
             conf=("conf", "mean"),
             n_correct=("correct", "sum"),
         )
-        # majority-vote prediction (positive when mean prob >= 0.5)
+        # Soft-vote prediction: average probabilities, then apply 0.5.
         grouped[f"{prefix}_pred"] = np.where(
             grouped["prob_pos"] >= 0.5, "positive", "negative"
         )
@@ -71,14 +71,14 @@ def main() -> None:
     gold = load_gold()
     print(f"Loaded gold labels: {len(gold)} rows")
 
-    # Collapse the three seeds into one majority-vote row per tweet, then
+    # Collapse the three seeds into one soft-vote row per tweet, then
     # join onto the gold labels to give each tweet all per-system columns
     preds = aggregate_predictions(raw, SYSTEM_COLUMN_PREFIX)
     print(f"Aggregated predictions: {len(preds)} rows")
 
     df = gold.merge(preds, on=["split", "idx"], how="inner")
 
-    # Mark correctness of the majority-vote prediction
+    # Mark correctness of the soft-vote prediction
     for _, prefix in SYSTEM_COLUMN_PREFIX.items():
         df[f"{prefix}_correct"] = (df[f"{prefix}_pred"] == df["gold"]).astype(int)
 

@@ -84,6 +84,17 @@ def test_expected_data_and_splits_are_consistent():
         assert rel in config.EXPECTED_DATA
 
 
+def test_seed_aggregation_uses_mean_probability_not_hard_vote():
+    import numpy as np
+
+    # Two seeds are just above 0.5, but one confident negative makes the mean
+    # fall below 0.5. Hard majority voting would predict positive here.
+    probs = np.array([[0.51], [0.51], [0.01]])
+    mean_prob, pred = config.aggregate_seed_probabilities(probs)
+    assert mean_prob[0] == pytest.approx(0.3433333333)
+    assert pred[0] == 0
+
+
 # --- smoke test: every pipeline script parses --------------------------------
 
 def test_all_pipeline_scripts_compile():

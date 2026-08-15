@@ -17,8 +17,8 @@ from sklearn.metrics import f1_score, roc_auc_score
 from transformers import AutoTokenizer, T5ForConditionalGeneration
 
 from config import (
-    PARQUET, PRACTICE_SPLITS, SEEDS, TEST_SPLITS, data_root, get_device,
-    load_checkpoint,
+    PARQUET, PRACTICE_SPLITS, SEEDS, TEST_SPLITS,
+    aggregate_seed_probabilities, data_root, get_device, load_checkpoint,
 )
 
 REPO = Path(__file__).resolve().parents[1]
@@ -86,24 +86,25 @@ def main() -> None:
             probs[nm].append(p)
         del model, tok
 
-    # Per-split aggregates (majority vote + mean over the three seeds)
+    # Per-split aggregates: mean probability across seeds, thresholded at 0.5.
     t5 = {}
     for nm in SPLITS:
         y = data[nm][1]
         sp = np.array(preds[nm])
-        mv = (sp.sum(0) >= 2).astype(int)
+        mean_prob, pred = aggregate_seed_probabilities(probs[nm])
         t5[nm] = {
-            "y": y, "mv": mv,
-            "mv_f1": mf1(y, mv),
-            "mean_f1": float(np.mean([mf1(y, sp[i]) for i in range(len(SEEDS))])),
-            "prob": np.mean(probs[nm], 0),
+            "y": y, "pred": pred,
+            "f1": mf1(y, pred),
+            "mean_seed_f1": float(np.mean([mf1(y, sp[i]) for i in range(len(SEEDS))])),
+            "prob": mean_prob,
             "seed_disagree": float(np.mean([len(set(sp[:, j])) > 1 for j in range(sp.shape[1])])),
             "n_correct": (sp == y).sum(0),
         }
 
-    print("\n=== T5 macro-F1 (mean / majority vote) ===")
+    print("\n=== T5 macro-F1 (mean per-seed F1 / soft vote) ===")
     for nm in SPLITS:
-        print(f"  {nm:14s} mean={t5[nm]['mean_f1']:.4f}  mv={t5[nm]['mv_f1']:.4f}")
+        print(f"  {nm:14s} mean_seed={t5[nm]['mean_seed_f1']:.4f}  "
+              f"soft={t5[nm]['f1']:.4f}")
 
     # Long composite metrics, computed against the canonical parquet baseline
     canon = pd.read_parquet(PARQUET)
@@ -113,23 +114,23 @@ def main() -> None:
     score = cl["oov_frac"].fillna(0).to_numpy() + cl["sem_dist"].fillna(0).to_numpy()
     q5 = (pd.qcut(pd.Series(score), 5, labels=[1, 2, 3, 4, 5]) == 5).to_numpy()
     long_metrics = {
-        "f1": round(t5["long"]["mv_f1"], 4),
+        "f1": round(t5["long"]["f1"], 4),
         "auroc": round(float(roc_auc_score(yL, t5["long"]["prob"])), 4),
         "stability": round(1 - t5["long"]["seed_disagree"], 4),
-        "q5_gain": round(100 * (mf1(yL[q5], t5["long"]["mv"][q5]) - mf1(yL[q5], baseL[q5])), 2),
+        "q5_gain": round(100 * (mf1(yL[q5], t5["long"]["pred"][q5]) - mf1(yL[q5], baseL[q5])), 2),
     }
     print(f"\n=== T5 long composite metrics ===\n  {long_metrics}")
 
     # Write t5.csv and upsert the T5 row into composite.csv
     t5_summary = {
-        "within_mean": round(t5["within"]["mean_f1"], 4),
-        "short_mean": round(t5["short"]["mean_f1"], 4),
-        "long_mean": round(t5["long"]["mean_f1"], 4),
-        "within_mv": round(t5["within"]["mv_f1"], 4),
-        "short_mv": round(t5["short"]["mv_f1"], 4),
-        "long_mv": round(t5["long"]["mv_f1"], 4),
-        "practice_2016": round(t5["practice_2016"]["mv_f1"], 4),
-        "practice_2018": round(t5["practice_2018"]["mv_f1"], 4),
+        "within_mean_seed_f1": round(t5["within"]["mean_seed_f1"], 4),
+        "short_mean_seed_f1": round(t5["short"]["mean_seed_f1"], 4),
+        "long_mean_seed_f1": round(t5["long"]["mean_seed_f1"], 4),
+        "within_f1": round(t5["within"]["f1"], 4),
+        "short_f1": round(t5["short"]["f1"], 4),
+        "long_f1": round(t5["long"]["f1"], 4),
+        "practice_2016": round(t5["practice_2016"]["f1"], 4),
+        "practice_2018": round(t5["practice_2018"]["f1"], 4),
         **long_metrics,
     }
     pd.DataFrame([t5_summary]).to_csv(OUT / "t5.csv", index=False)
@@ -168,7 +169,7 @@ def main() -> None:
     order = ["baseline", "DatePrefix", "MLMPretrain", "RecencyWeight", "TimeLMs", "TEA", "PretrainedTEA", "T5"]
     sub = comp.set_index("system").loc[order, ["f1", "auroc", "stability", "q5_gain"]]
     norm = (sub - sub.min()) / (sub.max() - sub.min())
-    tot = norm.sum(1)
+    tot = norm.sum(axis=1)
     comp["composite"] = comp.system.map(tot).fillna(comp.get("composite"))
     comp.to_csv(comp_path, index=False)
     print("composite.csv updated; eight-system ranking:")

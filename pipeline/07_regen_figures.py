@@ -2,6 +2,18 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
+
+os.environ.setdefault("MPLBACKEND", "Agg")
+os.environ.setdefault(
+    "MPLCONFIGDIR", str(Path(tempfile.gettempdir()) / "temporal-drift-matplotlib")
+)
+os.environ.setdefault(
+    "XDG_CACHE_HOME", str(Path(tempfile.gettempdir()) / "temporal-drift-cache")
+)
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -17,6 +29,8 @@ HAIRLINE = "#e4e4e1"
 GRID = "#ececea"
 
 NEUTRAL = "#8f8f88"
+ACCENT = "#2c6fa3"    # blue: the best strategy / proposed method (the target)
+ACCENT2 = "#c26a4a"   # rust: the deployable, dev-tuned threshold (can fail)
 
 SPLITS = ["within", "short", "long"]
 
@@ -59,10 +73,10 @@ def fig_threshold() -> None:
         rec = round(100 * ins.loc[sp, "gain_recovered"])
 
         ax.plot([base, best], [y, y], color=HAIRLINE, lw=2.4, zorder=1, solid_capstyle="round")
-        ax.scatter([dev], [y], marker="x", s=42, c=INK_FAINT, lw=1.6, zorder=3)
+        ax.scatter([dev], [y], marker="x", s=44, c=ACCENT2, lw=1.8, zorder=3)
         ax.scatter([base], [y], s=48, c=NEUTRAL, zorder=3)
-        ax.scatter([opt], [y], s=58, facecolors="white", edgecolors=INK, lw=1.3, zorder=3)
-        ax.scatter([best], [y], s=52, c=INK, zorder=3)
+        ax.scatter([opt], [y], s=58, facecolors="white", edgecolors=ACCENT, lw=1.6, zorder=3)
+        ax.scatter([best], [y], s=54, c=ACCENT, zorder=3)
 
         note = f"threshold alone\n{rec}% of the gain"
         if sp == "within":
@@ -85,9 +99,11 @@ def fig_threshold() -> None:
     handles = [
         plt.Line2D([], [], marker="o", color="none", markerfacecolor=NEUTRAL, ms=6, label="baseline"),
         plt.Line2D([], [], marker="o", color="none", markerfacecolor="white",
-                   markeredgecolor=INK, ms=6.5, label="optimal threshold (test labels)"),
-        plt.Line2D([], [], marker="o", color="none", markerfacecolor=INK, ms=6, label="best strategy"),
-        plt.Line2D([], [], marker="x", color=INK_FAINT, ls="none", ms=6, label="dev-tuned threshold"),
+                   markeredgecolor=ACCENT, ms=6.5, label="optimal threshold (test labels)"),
+        plt.Line2D([], [], marker="o", color="none", markerfacecolor=ACCENT, ms=6,
+                   label="best non-generative strategy"),
+        plt.Line2D([], [], marker="x", color=ACCENT2, ls="none", ms=6,
+                   label="practice-tuned threshold"),
     ]
     ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, 1.16),
               ncol=4, fontsize=7, frameon=False, columnspacing=1.0, handletextpad=0.3)
@@ -98,10 +114,48 @@ def fig_threshold() -> None:
     print(f"  {out.name}")
 
 
+# Composite robustness ranking on the long period (horizontal bars)
+def fig_composite() -> None:
+    from config import ANALYSIS_DIR
+    path = ANALYSIS_DIR / "all_systems" / "composite.csv"
+    if not path.exists():
+        print("  fig_composite: composite.csv missing, run 12/13 first — skipping.")
+        return
+    df = pd.read_csv(path).sort_values("composite")
+
+    fig, ax = plt.subplots(figsize=(5.4, 2.7))
+    ys = range(len(df))
+    colours = [ACCENT if s == "PretrainedTEA" else NEUTRAL for s in df["system"]]
+    ax.barh(list(ys), df["composite"], color=colours, height=0.66, zorder=2)
+    for y, (s, v) in enumerate(zip(df["system"], df["composite"])):
+        ax.annotate(f"{v:.2f}", (v, y), xytext=(4, 0), textcoords="offset points",
+                    va="center", ha="left", fontsize=7.2,
+                    color=ACCENT if s == "PretrainedTEA" else INK_SOFT,
+                    fontweight="bold" if s == "PretrainedTEA" else "normal")
+    ax.set_yticks(list(ys))
+    ax.set_yticklabels(df["system"], fontsize=8)
+    for tick, s in zip(ax.get_yticklabels(), df["system"]):
+        if s == "PretrainedTEA":
+            tick.set_color(ACCENT)
+            tick.set_fontweight("bold")
+    ax.set_xlim(0, 4.4)
+    ax.set_xlabel("Composite robustness score (long period)", fontsize=9)
+    ax.grid(axis="x", color=GRID, lw=0.7)
+    ax.set_axisbelow(True)
+    strip_spines(ax, keep=("bottom",))
+    ax.tick_params(length=0)
+    plt.tight_layout()
+    out = FIGURES_DIR / "fig_composite.png"
+    fig.savefig(out, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  {out.name}")
+
+
 def main() -> None:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-    print("Rendering figure ...")
+    print("Rendering figures ...")
     fig_threshold()
+    fig_composite()
 
 
 if __name__ == "__main__":

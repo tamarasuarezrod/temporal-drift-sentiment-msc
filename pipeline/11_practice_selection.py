@@ -18,6 +18,7 @@ from sklearn.metrics import f1_score
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 from config import (
+    aggregate_seed_probabilities,
     get_device,
     LABEL2ID,
     METRICS_DIR,
@@ -44,17 +45,17 @@ DEVICE = get_device()
 
 
 @torch.no_grad()
-def predict(model, tokenizer, texts: list[str], batch_size: int = 64) -> np.ndarray:
+def predict_prob(model, tokenizer, texts: list[str], batch_size: int = 64) -> np.ndarray:
     model.eval()
-    preds = []
+    probs = []
     for i in range(0, len(texts), batch_size):
         chunk = [t.replace("@MENTION", "@user") for t in texts[i:i + batch_size]]
         enc = tokenizer(
             chunk, truncation=True, padding=True, max_length=128, return_tensors="pt"
         ).to(DEVICE)
         logits = model(**enc).logits
-        preds.append(logits.argmax(dim=-1).cpu().numpy())
-    return np.concatenate(preds)
+        probs.append(torch.softmax(logits, dim=-1)[:, LABEL2ID["positive"]].cpu().numpy())
+    return np.concatenate(probs)
 
 
 def main() -> None:
@@ -70,23 +71,22 @@ def main() -> None:
         practice[name] = df
         print(f"  {name}: n={len(df)}  positive_rate={df['label_id'].mean():.3f}")
 
-    # Majority-vote predictions per system on each practice set
+    # Soft-vote predictions per system on each practice set
     prac_f1 = {name: {} for name, _ in PRACTICE_FILES}
     for strategy, ckpt_id in SYSTEMS:
-        votes = {name: [] for name, _ in PRACTICE_FILES}
+        probabilities = {name: [] for name, _ in PRACTICE_FILES}
         for seed in SEEDS:
             ckpt = f"{ckpt_id}-seed{seed}"
             print(f"[ {strategy}  seed {seed} ]  {ckpt}")
             tokenizer = load_checkpoint(AutoTokenizer, ckpt)
             model = load_checkpoint(AutoModelForSequenceClassification, ckpt).to(DEVICE)
             for name, df in practice.items():
-                votes[name].append(predict(model, tokenizer, df["pp_text"].tolist()))
+                probabilities[name].append(predict_prob(model, tokenizer, df["pp_text"].tolist()))
             del model, tokenizer
         for name, df in practice.items():
-            stacked = np.stack(votes[name])  # 3 x n
-            majority = (stacked.sum(axis=0) >= 2).astype(int)
+            _, prediction = aggregate_seed_probabilities(probabilities[name])
             prac_f1[name][strategy] = f1_score(
-                df["label_id"], majority, average="macro", zero_division=0
+                df["label_id"], prediction, average="macro", zero_division=0
             )
 
     # Test F1 from the regenerated results table

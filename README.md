@@ -77,7 +77,8 @@ recency-weighted expert-averaging ablation (`expertaveraging`) is used in the
 factorial in step 12.
 
 Each system has three seeds (42, 1, 2) and is trained in its own notebook under
-`strategies/`. Reported results are the majority vote across the three seeds. In
+`strategies/`. Reported results average the positive-class probabilities across
+the three seeds and apply a threshold of 0.5. In
 the pipeline, the six literature systems and the baseline are scored together in
 step 04, while T5 and PretrainedTEA need their own scoring and are handled in
 steps 12 and 13.

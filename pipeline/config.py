@@ -117,6 +117,19 @@ SYSTEM_COLUMN_PREFIX = {
 
 SEEDS = [42, 1, 2]
 
+
+def aggregate_seed_probabilities(probabilities, axis=0):
+    """Average positive-class probabilities across seeds and threshold at 0.5.
+
+    Returns ``(mean_probability, prediction)``. This is soft voting, and is
+    the single aggregation rule used for every system reported in the paper.
+    """
+    import numpy as np
+
+    mean_probability = np.asarray(probabilities).mean(axis=axis)
+    prediction = (mean_probability >= 0.5).astype(int)
+    return mean_probability, prediction
+
 # A tweet is flagged as a surface-polarity mismatch when the irony detector's
 # positive-class probability exceeds IRONY_THRESHOLD
 IRONY_MODEL = "cardiffnlp/twitter-roberta-base-irony"

@@ -75,13 +75,14 @@ Called in this order by `run_all.sh`:
 
 Each script is independently runnable (assuming its inputs are on disk).
 
-**Aggregation note.** The results table reports the macro-F1 of the
-majority-vote prediction across the three seeds (mean positive
-probability thresholded at 0.5), computed by `06_regen_tables.py`.
+**Aggregation note.** The results table reports the macro-F1 obtained by soft
+voting across the three seeds. For each tweet, the positive-class
+probabilities are averaged and the resulting score is thresholded at 0.5.
+The same rule is used for all eight systems.
 Per-seed F1 scores can be recomputed from `results/preds_raw.parquet`
 (written by `04_build_predictions.py`), which keeps each seed's
 predictions separate. The mean of per-seed F1 scores is a different,
-usually lower, aggregate than the majority-vote F1.
+usually lower, aggregate than the soft-vote F1.
 
 ## Environment
 

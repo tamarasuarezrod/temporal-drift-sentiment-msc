@@ -96,17 +96,17 @@ def run_inference() -> pd.DataFrame:
 
 
 def aggregate(raw: pd.DataFrame) -> dict:
-    """Majority vote + mean prob per (system, split, idx)."""
+    """Soft-vote prediction and mean probability per (system, split, idx)."""
     agg = {}
     for (system, split), g in raw.groupby(["system", "split"]):
         wide = g.pivot_table(index="idx", columns="seed", values="pred")
-        vote = (wide.sum(axis=1) >= 2).astype(int)
         prob = g.groupby("idx")["prob_pos"].mean()
+        pred = (prob >= 0.5).astype(int)
         gold = g.groupby("idx")["gold"].first()
         ncorr = (wide.eq(gold, axis=0)).sum(axis=1)
         disagree = (wide.nunique(axis=1) > 1).mean()
         agg[(system, split)] = {
-            "vote": vote, "prob": prob, "gold": gold,
+            "pred": pred, "prob": prob, "gold": gold,
             "n_correct": ncorr, "seed_disagree": float(disagree),
             "per_seed_pred": wide,
         }
@@ -156,20 +156,20 @@ def main() -> None:
     # PretrainedTEA is the same annual averaging on the MLM backbone.
     fact_rows = []
     f1_all: dict[tuple[str, str], float] = {}
-    votes_all: dict[tuple[str, str], np.ndarray] = {}
+    preds_all: dict[tuple[str, str], np.ndarray] = {}
     probs_all: dict[tuple[str, str], np.ndarray] = {}
 
     for sp in splits:
         d, y = canon_split(sp)
         for s in old_systems:
-            votes_all[(s, sp)] = (d[f"{s}_pred"] == "positive").astype(int).to_numpy()
+            preds_all[(s, sp)] = (d[f"{s}_pred"] == "positive").astype(int).to_numpy()
             probs_all[(s, sp)] = d[f"{s}_prob_pos"].to_numpy()
-            f1_all[(s, sp)] = mf1(y, votes_all[(s, sp)])
+            f1_all[(s, sp)] = mf1(y, preds_all[(s, sp)])
         for s in PROPOSED_SYSTEMS:
             a = agg[(s, sp)]
-            votes_all[(s, sp)] = a["vote"].to_numpy()
+            preds_all[(s, sp)] = a["pred"].to_numpy()
             probs_all[(s, sp)] = a["prob"].to_numpy()
-            f1_all[(s, sp)] = mf1(y, votes_all[(s, sp)])
+            f1_all[(s, sp)] = mf1(y, preds_all[(s, sp)])
 
     for sp in splits:
         b, s2, tea, s10 = (f1_all[(k, sp)] for k in
@@ -194,7 +194,7 @@ def main() -> None:
             ("PretrainedTEA", "TEA", "PretrainedTEA vs TEA (backbone on top of mechanism)"),
             ("TEA", "baseline", "TEA vs baseline (averaging alone)"),
         ]:
-            d, lo, hi = paired_bootstrap(y, votes_all[(a, sp)], votes_all[(b, sp)])
+            d, lo, hi = paired_bootstrap(y, preds_all[(a, sp)], preds_all[(b, sp)])
             comps.append({
                 "comparison": label, "split": sp, "mean_diff_pp": round(d, 2),
                 "ci_lo_pp": round(lo, 1), "ci_hi_pp": round(hi, 1),
@@ -232,10 +232,10 @@ def main() -> None:
     sev = []
     for qq in [1, 2, 3, 4, 5]:
         m = (q == qq).to_numpy()
-        base = mf1(y[m], votes_all[("baseline", "long")][m])
+        base = mf1(y[m], preds_all[("baseline", "long")][m])
         row = {"q": qq, "n": int(m.sum())}
         for s in all_systems[1:]:
-            row[s] = round(100 * (mf1(y[m], votes_all[(s, "long")][m]) - base), 2)
+            row[s] = round(100 * (mf1(y[m], preds_all[(s, "long")][m]) - base), 2)
         sev.append(row)
     pd.DataFrame(sev).to_csv(OUT / "severity.csv", index=False)
     print("severity.csv done")
@@ -262,7 +262,7 @@ def main() -> None:
         d, y = canon_split(sp)
         m = d["polarity_mismatch"].fillna(0).astype(int).to_numpy() == 1
         for s in all_systems:
-            v = votes_all[(s, sp)]
+            v = preds_all[(s, sp)]
             pm_rows.append({
                 "system": s, "split": sp,
                 "f1_polarity_mismatch": round(mf1(y[m], v[m]), 4),
@@ -277,7 +277,7 @@ def main() -> None:
         row = {"system": s}
         for prac in ["practice_2016", "practice_2018"]:
             a = agg[(s, prac)]
-            row[prac] = round(mf1(a["gold"].to_numpy(), a["vote"].to_numpy()), 4)
+            row[prac] = round(mf1(a["gold"].to_numpy(), a["pred"].to_numpy()), 4)
         for sp in splits:
             row[f"test_{sp}"] = round(f1_all[(s, sp)], 4)
         sel_rows.append(row)
@@ -292,7 +292,7 @@ def main() -> None:
         "within": round(f1_all[("PretrainedTEA", "within")], 4),
         "short": round(f1_all[("PretrainedTEA", "short")], 4),
         "long": round(f1_all[("PretrainedTEA", "long")], 4),
-        "source": "this work, majority vote over 3 seeds",
+        "source": "this work, mean probability over 3 seeds",
     })
     pd.DataFrame(part).to_csv(OUT / "participants.csv", index=False)
     print("participants.csv done")

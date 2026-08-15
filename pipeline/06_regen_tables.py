@@ -103,7 +103,7 @@ def results_to_latex(df: pd.DataFrame) -> str:
 
     lines = [
         r"\begin{table}[t]",
-        r"\caption{Macro-F1 by strategy (majority vote across three seeds), grouped by delivered mechanism. The best score in each column is in bold.}",
+        r"\caption{Macro-F1 by strategy after averaging positive-class probabilities across three seeds, grouped by delivered mechanism. The best score in each column is in bold.}",
         r"\label{tab:results}",
         r"\centering",
         r"\begin{tabular}{lccc}",
