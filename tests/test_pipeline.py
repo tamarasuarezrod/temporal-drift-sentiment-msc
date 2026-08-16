@@ -47,14 +47,14 @@ def test_tokenize_dropstop_removes_stopwords_and_short_tokens():
 # --- polarity flag (03) ----------------------------------------------------
 
 def test_polarity_counts():
-    prag = _load("03_compute_pragmatic.py")
+    prag = _load("03_compute_polarity_mismatch.py")
     pos, neg = {"good", "great"}, {"bad", "awful"}
     assert prag.polarity_counts("good and great day", pos, neg) == (2, 0)
     assert prag.polarity_counts("an awful bad mess", pos, neg) == (0, 2)
 
 
 def test_flag_direction():
-    prag = _load("03_compute_pragmatic.py")
+    prag = _load("03_compute_polarity_mismatch.py")
     # all-positive words but a negative label -> sarcasm
     assert prag.flag_direction(2, 0, "negative") == "B_sarcasm"
     # all-negative words but a positive label -> softened complaint / joke
