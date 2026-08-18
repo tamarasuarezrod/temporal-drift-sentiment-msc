@@ -67,6 +67,7 @@ def bootstrap_macro_f1(
 
 
 def main() -> None:
+    # Load the canonical systems and the two systems stored as raw predictions
     canonical = pd.read_parquet(PARQUET)
     proposed_raw = pd.read_parquet(ALL_SYSTEMS_DIR / "proposed_preds_raw.parquet")
     t5_raw = pd.read_parquet(ALL_SYSTEMS_DIR / "t5_preds_raw.parquet")
@@ -74,6 +75,7 @@ def main() -> None:
 
     rows: list[dict[str, object]] = []
     for split_index, split in enumerate(SPLITS):
+        # Select the 20% of tweets with the highest drift score in this period
         block = (
             canonical[canonical.split == split]
             .sort_values("idx")
@@ -85,6 +87,7 @@ def main() -> None:
         q5 = (quintile == 5).to_numpy()
         y_q5 = y[q5]
 
+        # Build one soft-vote prediction vector per system for that subset
         predictions: dict[str, np.ndarray] = {}
         for system in CANONICAL_SYSTEMS:
             predictions[system] = (
@@ -95,6 +98,7 @@ def main() -> None:
                 raw_by_system[system], system, split
             )[q5]
 
+        # Use shared resamples so every system comparison remains paired
         rng = np.random.default_rng(42 + split_index)
         indices = rng.integers(0, len(y_q5), size=(N_BOOT, len(y_q5)))
         bootstrap_scores = {
@@ -126,6 +130,7 @@ def main() -> None:
                 }
             )
 
+        # Compare every strategy with the baseline, then the winner with its peers
         for system in MITIGATION_SYSTEMS:
             add_comparison("vs_baseline", system, "baseline")
 
@@ -134,6 +139,7 @@ def main() -> None:
             if system != winner:
                 add_comparison("winner_vs_strategy", winner, system)
 
+    # Save the full interval table and print a short summary
     result = pd.DataFrame(rows)
     result.to_csv(OUT, index=False)
     print(f"wrote {OUT}")

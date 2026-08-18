@@ -132,11 +132,13 @@ def results_to_latex(df: pd.DataFrame) -> str:
 def main() -> None:
     TABLES_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Rebuild the dataset overview directly from the source JSON files
     t1 = dataset_table()
     t1.to_csv(TABLES_DIR / "dataset.csv", index=False)
     print("\nDataset table:")
     print(t1.to_string(index=False))
 
+    # Rebuild drift and model-result tables when their inputs are available
     if DRIFT_CSV.exists():
         t2 = drift_table()
         t2.to_csv(TABLES_DIR / "drift.csv", index=False)

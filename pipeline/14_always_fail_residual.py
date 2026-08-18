@@ -45,14 +45,18 @@ def all_n(d: pd.DataFrame, n: int) -> np.ndarray:
 
 
 def main() -> None:
+    # Start with the six systems stored in the canonical per-tweet parquet
     pt = pd.read_parquet(PARQUET)
     pt = pt[pt.split.isin(TEST_SPLITS)].copy()
+
+    # Add the per-seed correctness counts for T5 and PretrainedTEA
     for system, path in [("T5", OUT / "t5_preds_raw.parquet"),
                          ("PretrainedTEA", OUT / "proposed_preds_raw.parquet")]:
         pt = pt.merge(n_correct_from_raw(path, system), on=["split", "idx"], how="left")
         assert not pt[f"{system}_n_correct"].isna().any(), f"{system}: rows missing"
         pt[f"{system}_n_correct"] = pt[f"{system}_n_correct"].astype(int)
 
+    # Summarise tweets missed by every seed of every system, by split and pooled
     rows = []
     for sp in TEST_SPLITS + ["pooled"]:
         d = pt if sp == "pooled" else pt[pt.split == sp]
@@ -73,6 +77,7 @@ def main() -> None:
             "polarity_mismatch_rate_all": round(100 * pm_all, 1),
             "polarity_mismatch_enrichment": round(pm_af / pm_all, 2) if pm_all else None,
         })
+    # Write the summary used by the paper and dashboard
     pd.DataFrame(rows).to_csv(OUT / "residual.csv", index=False)
     for r in rows:
         print(f"  {r['split']:7s} always-fail {r['always_fail_pct']}% (n={r['always_fail_n']})  "

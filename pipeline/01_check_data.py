@@ -11,6 +11,7 @@ from config import DATA_DIR, EXPECTED_DATA, UNLABELED_CORPUS
 
 
 def main() -> None:
+    # Check the labelled splits required by every pipeline stage
     missing = [f for f in EXPECTED_DATA if not (DATA_DIR / f).exists()]
     if missing:
         print("Missing data files under data/:")
@@ -25,6 +26,7 @@ def main() -> None:
     for f in EXPECTED_DATA:
         print(f"  - {f}")
 
+    # The unlabelled corpus is optional and only affects semantic drift
     if UNLABELED_CORPUS.exists():
         print(f"\nUnlabelled corpus present ({UNLABELED_CORPUS.name}).")
     else:

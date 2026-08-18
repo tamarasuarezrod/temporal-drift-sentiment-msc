@@ -20,6 +20,7 @@ SPLITS = ["within", "short", "long"]
 
 
 def main() -> None:
+    # Soft-vote the three PretrainedTEA seeds into one prediction per tweet
     tweets = pd.read_parquet(PARQUET)
     raw = pd.read_parquet(ALL_SYSTEMS_DIR / "proposed_preds_raw.parquet")
     proposed = (
@@ -30,12 +31,14 @@ def main() -> None:
     proposed["PretrainedTEA_pred"] = proposed.mean_prob_pos.ge(0.5).map(
         {True: "positive", False: "negative"}
     )
+    # Join the combined model to the canonical predictions
     tweets = tweets.merge(
         proposed[["split", "idx", "PretrainedTEA_pred"]],
         on=["split", "idx"],
         validate="one_to_one",
     )
 
+    # Count corrected baseline errors and the shared MLMPretrain/TEA corrections
     rows = []
     for split in SPLITS:
         block = tweets[tweets.split == split]
@@ -59,6 +62,7 @@ def main() -> None:
             }
         )
 
+    # Save one summary row per test period
     result = pd.DataFrame(rows)
     result.to_csv(OUT, index=False)
     print(f"wrote {OUT}")

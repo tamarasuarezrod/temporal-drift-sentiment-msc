@@ -28,6 +28,7 @@ DEVICE = get_device()
 TOKEN_RE = re.compile(r"[a-z']+")
 
 
+# Load the sentiment lexicon and count positive and negative words
 def load_lexicon() -> tuple[set[str], set[str]]:
     import nltk
     try:
@@ -60,6 +61,7 @@ def flag_direction(lex_pos: int, lex_neg: int, gold: str) -> str | None:
 
 @torch.no_grad()
 def irony_scores(model, tokenizer, texts: list[str], batch_size: int = 64) -> np.ndarray:
+    """Score each tweet with the supporting irony model in small batches."""
     model.eval()
     all_probs = []
     for i in range(0, len(texts), batch_size):
@@ -73,6 +75,7 @@ def irony_scores(model, tokenizer, texts: list[str], batch_size: int = 64) -> np
 
 
 def main() -> None:
+    # Load the two resources used by the analysis
     print(f"Device: {DEVICE}")
     pos, neg = load_lexicon()
     print(f"Hu-Liu opinion lexicon: {len(pos)} positive, {len(neg)} negative words")
@@ -83,6 +86,8 @@ def main() -> None:
 
     root = data_root()
     frames = []
+
+    # Flag polarity mismatches and add the irony score for each test split
     for split_name, rel in SPLITS:
         with open(root / rel) as f:
             records = json.load(f)
@@ -109,6 +114,7 @@ def main() -> None:
               f"(irony prob: flagged {irony_in_flagged:.3f} vs overall {irony_overall:.3f})")
         frames.append(df)
 
+    # Combine the splits into one per-tweet output file
     out = pd.concat(frames, ignore_index=True)
     POLARITY_MISMATCH_CSV.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(POLARITY_MISMATCH_CSV, index=False)

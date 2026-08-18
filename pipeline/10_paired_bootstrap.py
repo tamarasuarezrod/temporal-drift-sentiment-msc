@@ -27,10 +27,13 @@ def macro_f1(y, p):
 
 
 def main() -> None:
+    # Load the shared per-tweet predictions used for every comparison
     df = pd.read_parquet(PARQUET)
     rng = np.random.default_rng(42)
 
     rows = []
+
+    # Run the same paired resampling procedure for each planned comparison
     for split, a, b, label in COMPARISONS:
         sub = df[df["split"] == split]
         y = (sub["gold"] == "positive").astype(int).to_numpy()
@@ -56,6 +59,7 @@ def main() -> None:
         tag = "SIG" if significant else "n.s."
         print(f"  {label}: {mean*100:+.2f}pp  [{lo*100:+.2f}, {hi*100:+.2f}]  {tag}")
 
+    # Save all confidence intervals in one table
     out = pd.DataFrame(rows)
     METRICS_DIR.mkdir(parents=True, exist_ok=True)
     out.to_csv(METRICS_DIR / "paired_bootstrap.csv", index=False)
