@@ -1,0 +1,4 @@
+split,n,baseline_errors,mlmpretrain_corrected,tea_corrected,pretrainedtea_corrected,shared_corrections,union_corrections,jaccard_overlap
+within,908,258,30,39,51,16,53,0.3019
+short,908,299,38,34,42,14,58,0.2414
+long,908,281,40,48,52,29,59,0.4915

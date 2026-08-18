@@ -22,13 +22,13 @@ outputs. The trained checkpoints and the evaluation data are hosted separately
 strategies/         Training notebook for each system (one per subfolder):
                     baseline, DatePrefix, MLMPretrain, RecencyWeight,
                     TimeLMs, TEA, T5, PretrainedTEA
-pipeline/           Reproduction and evaluation (13 steps) + run_all.sh + config.py
+pipeline/           Reproduction and evaluation (14 steps) + run_all.sh + config.py
 results/            Reproducible outputs
                     per_tweet_analysis.parquet, preds_raw.parquet (canonical data)
   tables/           dataset, drift and results tables as CSV (+ LaTeX fragment)
   figures/          fig_threshold.png
   metrics/          drift, polarity-mismatch, threshold, bootstrap, selection, contamination
-  all_systems/      outputs covering all eight systems (incl. PretrainedTEA, T5)
+  all_systems/      outputs covering all eight systems
 tests/              unit tests for the pipeline's helper functions
 requirements.txt    Python dependencies
 ```

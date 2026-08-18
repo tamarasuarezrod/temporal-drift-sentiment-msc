@@ -225,36 +225,41 @@ def main() -> None:
     pd.DataFrame(panel).to_csv(OUT / "metric_panel.csv", index=False)
     print("metric_panel.csv done")
 
-    # Drift-severity quintiles on long, incl. PretrainedTEA
-    d, y = canon_split("long")
-    score = d["oov_frac"].fillna(0) + d["sem_dist"].fillna(0)
-    q = pd.qcut(score, 5, labels=[1, 2, 3, 4, 5])
-    sev = []
-    for qq in [1, 2, 3, 4, 5]:
-        m = (q == qq).to_numpy()
-        base = mf1(y[m], preds_all[("baseline", "long")][m])
-        row = {"q": qq, "n": int(m.sum())}
-        for s in all_systems[1:]:
-            row[s] = round(100 * (mf1(y[m], preds_all[(s, "long")][m]) - base), 2)
-        sev.append(row)
-    pd.DataFrame(sev).to_csv(OUT / "severity.csv", index=False)
-    print("severity.csv done")
+    # Drift-severity quintiles on every test split, incl. PretrainedTEA.
+    severity_rows = []
+    for sp in splits:
+        d, y = canon_split(sp)
+        score = d["oov_frac"].fillna(0) + d["sem_dist"].fillna(0)
+        q = pd.qcut(score, 5, labels=[1, 2, 3, 4, 5])
+        for qq in [1, 2, 3, 4, 5]:
+            m = (q == qq).to_numpy()
+            base = mf1(y[m], preds_all[("baseline", sp)][m])
+            row = {"split": sp, "q": qq, "n": int(m.sum())}
+            for s in all_systems[1:]:
+                row[s] = round(100 * (mf1(y[m], preds_all[(s, sp)][m]) - base), 2)
+            severity_rows.append(row)
+    severity = pd.DataFrame(severity_rows)
+    severity.to_csv(OUT / "severity_by_split.csv", index=False)
+    print("severity_by_split.csv done")
 
-    # Composite base on long (T5 row added in stage 13): the four robustness
-    # measures per system, from the metric panel and the Q5 severity row.
-    q5row = sev[-1]  # q == 5
+    # Composite bases for every test split (T5 rows and normalised composite
+    # scores are added in stage 13). Each period is normalised independently.
     comp_rows = []
-    for s in all_systems:
-        r = next(p for p in panel if p["system"] == s and p["split"] == "long")
-        comp_rows.append({
-            "system": s,
-            "f1": r["f1"],
-            "auroc": r["auroc"],
-            "stability": round(1 - r["seed_disagree"], 4),
-            "q5_gain": 0.0 if s == "baseline" else q5row[s],
-        })
-    pd.DataFrame(comp_rows).to_csv(OUT / "composite.csv", index=False)
-    print("composite.csv (base) done")
+    for sp in splits:
+        q5row = severity[(severity.split == sp) & (severity.q == 5)].iloc[0]
+        for s in all_systems:
+            r = next(p for p in panel if p["system"] == s and p["split"] == sp)
+            comp_rows.append({
+                "split": sp,
+                "system": s,
+                "f1": r["f1"],
+                "auroc": r["auroc"],
+                "stability": round(1 - r["seed_disagree"], 4),
+                "q5_gain": 0.0 if s == "baseline" else q5row[s],
+            })
+    composite_by_split = pd.DataFrame(comp_rows)
+    composite_by_split.to_csv(OUT / "composite_by_split.csv", index=False)
+    print("composite_by_split.csv (base) done")
 
     # Polarity-mismatch subset per system per split
     pm_rows = []

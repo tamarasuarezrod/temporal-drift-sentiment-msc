@@ -1,4 +1,4 @@
-"""Regenerate the paper figure (fig_threshold.png) into results/figures/."""
+"""Regenerate the paper figures into results/figures/."""
 
 from __future__ import annotations
 
@@ -114,36 +114,46 @@ def fig_threshold() -> None:
     print(f"  {out.name}")
 
 
-# Composite robustness ranking on the long period (horizontal bars)
+# Robustness composite rankings for each period (horizontal bars)
 def fig_composite() -> None:
     from config import ANALYSIS_DIR
-    path = ANALYSIS_DIR / "all_systems" / "composite.csv"
+    composite_accent = "#2e7d6b"  # presentation green
+    composite_other = "#b8bab6"   # light neutral grey
+    path = ANALYSIS_DIR / "all_systems" / "composite_by_split.csv"
     if not path.exists():
-        print("  fig_composite: composite.csv missing, run 12/13 first — skipping.")
+        print("  fig_composite: composite_by_split.csv missing, run 12/13 first — skipping.")
         return
-    df = pd.read_csv(path).sort_values("composite")
+    all_periods = pd.read_csv(path)
 
-    fig, ax = plt.subplots(figsize=(5.4, 2.7))
-    ys = range(len(df))
-    colours = [ACCENT if s == "PretrainedTEA" else NEUTRAL for s in df["system"]]
-    ax.barh(list(ys), df["composite"], color=colours, height=0.66, zorder=2)
-    for y, (s, v) in enumerate(zip(df["system"], df["composite"])):
-        ax.annotate(f"{v:.2f}", (v, y), xytext=(4, 0), textcoords="offset points",
-                    va="center", ha="left", fontsize=7.2,
-                    color=ACCENT if s == "PretrainedTEA" else INK_SOFT,
-                    fontweight="bold" if s == "PretrainedTEA" else "normal")
-    ax.set_yticks(list(ys))
-    ax.set_yticklabels(df["system"], fontsize=8)
-    for tick, s in zip(ax.get_yticklabels(), df["system"]):
-        if s == "PretrainedTEA":
-            tick.set_color(ACCENT)
-            tick.set_fontweight("bold")
-    ax.set_xlim(0, 4.4)
-    ax.set_xlabel("Composite robustness score (long period)", fontsize=9)
-    ax.grid(axis="x", color=GRID, lw=0.7)
-    ax.set_axisbelow(True)
-    strip_spines(ax, keep=("bottom",))
-    ax.tick_params(length=0)
+    # Native IEEE two-column width, so labels remain legible without being
+    # scaled down from an oversized canvas in LaTeX.
+    fig, axes = plt.subplots(1, 3, figsize=(7.1, 1.85), sharex=True)
+    for ax, split in zip(axes, ["within", "short", "long"]):
+        df = all_periods[all_periods.split == split].sort_values("composite")
+        ys = range(len(df))
+        colours = [
+            composite_accent if s == "PretrainedTEA" else composite_other
+            for s in df["system"]
+        ]
+        ax.barh(list(ys), df["composite"], color=colours, height=0.66, zorder=2)
+        for y, (system, value) in enumerate(zip(df["system"], df["composite"])):
+            ax.annotate(f"{value:.2f}", (value, y), xytext=(3, 0), textcoords="offset points",
+                        va="center", ha="left", fontsize=6.0,
+                        color=composite_accent if system == "PretrainedTEA" else INK_SOFT,
+                        fontweight="bold" if system == "PretrainedTEA" else "normal")
+        ax.set_yticks(list(ys))
+        labels = ["Baseline" if system == "baseline" else system for system in df["system"]]
+        ax.set_yticklabels(labels, fontsize=6.2)
+        for tick, system in zip(ax.get_yticklabels(), df["system"]):
+            if system == "PretrainedTEA":
+                tick.set_color(composite_accent)
+                tick.set_fontweight("bold")
+        ax.set_xlim(0, 4.4)
+        ax.set_title(split, fontsize=8, fontweight="normal")
+        ax.grid(axis="x", color=GRID, lw=0.7)
+        ax.set_axisbelow(True)
+        strip_spines(ax, keep=("bottom",))
+        ax.tick_params(length=0, labelsize=6.2)
     plt.tight_layout()
     out = FIGURES_DIR / "fig_composite.png"
     fig.savefig(out, dpi=220, bbox_inches="tight")

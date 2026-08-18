@@ -3,7 +3,7 @@
 T5 reframes sentiment as a text-to-text task and is scored by generation
 likelihood of "positive" against "negative" rather than by the classification
 path the other systems use. Writes its rows into results/all_systems/
-(per-split F1, practice scores, long-period metrics, per-tweet predictions)."""
+(per-split F1, practice scores, robustness metrics and per-tweet predictions)."""
 
 from __future__ import annotations
 
@@ -106,22 +106,44 @@ def main() -> None:
         print(f"  {nm:14s} mean_seed={t5[nm]['mean_seed_f1']:.4f}  "
               f"soft={t5[nm]['f1']:.4f}")
 
-    # Long composite metrics, computed against the canonical parquet baseline
+    # Composite inputs for all three test periods, computed against the
+    # canonical parquet baseline. The highest-drift quintile is defined within
+    # each period, matching the long-only calculation used previously.
     canon = pd.read_parquet(PARQUET)
-    cl = canon[canon.split == "long"].sort_values("idx").reset_index(drop=True)
-    yL = (cl.gold == "positive").astype(int).to_numpy()
-    baseL = (cl.baseline_pred == "positive").astype(int).to_numpy()
-    score = cl["oov_frac"].fillna(0).to_numpy() + cl["sem_dist"].fillna(0).to_numpy()
-    q5 = (pd.qcut(pd.Series(score), 5, labels=[1, 2, 3, 4, 5]) == 5).to_numpy()
-    long_metrics = {
-        "f1": round(t5["long"]["f1"], 4),
-        "auroc": round(float(roc_auc_score(yL, t5["long"]["prob"])), 4),
-        "stability": round(1 - t5["long"]["seed_disagree"], 4),
-        "q5_gain": round(100 * (mf1(yL[q5], t5["long"]["pred"][q5]) - mf1(yL[q5], baseL[q5])), 2),
-    }
-    print(f"\n=== T5 long composite metrics ===\n  {long_metrics}")
+    test_splits = ["within", "short", "long"]
+    robustness = {}
+    t5_severity = {}
+    for nm in test_splits:
+        split_df = canon[canon.split == nm].sort_values("idx").reset_index(drop=True)
+        y = (split_df.gold == "positive").astype(int).to_numpy()
+        baseline_pred = (split_df.baseline_pred == "positive").astype(int).to_numpy()
+        score = split_df["oov_frac"].fillna(0) + split_df["sem_dist"].fillna(0)
+        quintile = pd.qcut(score, 5, labels=[1, 2, 3, 4, 5])
+        q5 = (quintile == 5).to_numpy()
+        robustness[nm] = {
+            "f1": round(t5[nm]["f1"], 4),
+            "auroc": round(float(roc_auc_score(y, t5[nm]["prob"])), 4),
+            "stability": round(1 - t5[nm]["seed_disagree"], 4),
+            "q5_gain": round(
+                100 * (mf1(y[q5], t5[nm]["pred"][q5]) - mf1(y[q5], baseline_pred[q5])),
+                2,
+            ),
+        }
+        for qq in [1, 2, 3, 4, 5]:
+            mask = (quintile == qq).to_numpy()
+            t5_severity[(nm, qq)] = round(
+                100 * (
+                    mf1(y[mask], t5[nm]["pred"][mask])
+                    - mf1(y[mask], baseline_pred[mask])
+                ),
+                2,
+            )
+    print("\n=== T5 composite inputs by split ===")
+    for nm in test_splits:
+        print(f"  {nm:7s} {robustness[nm]}")
 
-    # Write t5.csv and upsert the T5 row into composite.csv
+    # Write t5.csv. The unprefixed metric names remain the backwards-compatible
+    # long-period view; prefixed columns expose every test period.
     t5_summary = {
         "within_mean_seed_f1": round(t5["within"]["mean_seed_f1"], 4),
         "short_mean_seed_f1": round(t5["short"]["mean_seed_f1"], 4),
@@ -131,7 +153,12 @@ def main() -> None:
         "long_f1": round(t5["long"]["f1"], 4),
         "practice_2016": round(t5["practice_2016"]["f1"], 4),
         "practice_2018": round(t5["practice_2018"]["f1"], 4),
-        **long_metrics,
+        **{
+            f"{nm}_{metric}": value
+            for nm in test_splits
+            for metric, value in robustness[nm].items()
+        },
+        **robustness["long"],
     }
     pd.DataFrame([t5_summary]).to_csv(OUT / "t5.csv", index=False)
     print(f"\nt5.csv done -> {t5_summary}")
@@ -160,21 +187,42 @@ def main() -> None:
     print(f"t5_preds_raw.parquet done -> {len(raw)} rows "
           f"({raw.split.nunique()} splits x {len(SEEDS)} seeds)")
 
-    comp_path = OUT / "composite.csv"
+    # Add T5 to the per-period severity table.
+    severity_path = OUT / "severity_by_split.csv"
+    severity = pd.read_csv(severity_path)
+    severity["T5"] = [t5_severity[(r.split, int(r.q))] for r in severity.itertuples()]
+    severity.to_csv(severity_path, index=False)
+
+    # Add T5 and recompute the composite independently within every test split.
+    comp_path = OUT / "composite_by_split.csv"
     comp = pd.read_csv(comp_path)
     comp = comp[comp.system != "T5"]
-    t5_row = {"system": "T5", **long_metrics}
-    comp = pd.concat([comp, pd.DataFrame([t5_row])], ignore_index=True)
-    # recompute the composite column over the eight presented systems
+    t5_rows = [
+        {"split": nm, "system": "T5", **robustness[nm]}
+        for nm in test_splits
+    ]
+    comp = pd.concat([comp, pd.DataFrame(t5_rows)], ignore_index=True)
     order = ["baseline", "DatePrefix", "MLMPretrain", "RecencyWeight", "TimeLMs", "TEA", "PretrainedTEA", "T5"]
-    sub = comp.set_index("system").loc[order, ["f1", "auroc", "stability", "q5_gain"]]
-    norm = (sub - sub.min()) / (sub.max() - sub.min())
-    tot = norm.sum(axis=1)
-    comp["composite"] = comp.system.map(tot).fillna(comp.get("composite"))
+    scored = []
+    rankings = {}
+    for nm in test_splits:
+        block = comp[comp.split == nm].set_index("system").loc[
+            order, ["f1", "auroc", "stability", "q5_gain"]
+        ]
+        norm = (block - block.min()) / (block.max() - block.min())
+        total = norm.sum(axis=1)
+        out = block.reset_index()
+        out.insert(0, "split", nm)
+        out["composite"] = out.system.map(total)
+        scored.append(out)
+        rankings[nm] = total.sort_values(ascending=False)
+    comp = pd.concat(scored, ignore_index=True)
     comp.to_csv(comp_path, index=False)
-    print("composite.csv updated; eight-system ranking:")
-    for r, (s, v) in enumerate(tot.sort_values(ascending=False).items(), 1):
-        print(f"  {r}. {s:<10} {v:.3f}")
+    print("composite_by_split.csv updated; eight-system rankings:")
+    for nm in test_splits:
+        print(f"  [{nm}]")
+        for rank, (system, value) in enumerate(rankings[nm].items(), 1):
+            print(f"    {rank}. {system:<14} {value:.3f}")
     print("\nALL DONE")
 
 

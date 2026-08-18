@@ -39,6 +39,12 @@ echo "==> [12] PretrainedTEA analysis (proposed method)"
 echo "==> [13] T5 analysis"
 "$PYTHON" "$HERE/13_evaluate_t5.py"
 
+echo "==> [15] high-drift bootstrap across test splits"
+"$PYTHON" "$HERE/15_high_drift_bootstrap.py"
+
+echo "==> [16] correction overlap across test splits"
+"$PYTHON" "$HERE/16_correction_overlap.py"
+
 echo "==> [14] always-fail residual"
 "$PYTHON" "$HERE/14_always_fail_residual.py"
 

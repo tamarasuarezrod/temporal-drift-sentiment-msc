@@ -95,6 +95,65 @@ def test_seed_aggregation_uses_mean_probability_not_hard_vote():
     assert pred[0] == 0
 
 
+def test_split_specific_composites_cover_all_systems():
+    import pandas as pd
+
+    root = PIPELINE.parent / "results" / "all_systems"
+    by_split = pd.read_csv(root / "composite_by_split.csv")
+
+    assert set(by_split.split) == {"within", "short", "long"}
+    assert (by_split.groupby("split").system.nunique() == 8).all()
+
+    winners = (
+        by_split.sort_values(["split", "composite"], ascending=[True, False])
+        .groupby("split", sort=False)
+        .first()
+    )
+    assert set(winners.system) == {"PretrainedTEA"}
+    expected = {"within": 2.9770277391, "short": 3.8195364238, "long": 3.9156626506}
+    for split, score in expected.items():
+        assert winners.loc[split, "composite"] == pytest.approx(score)
+
+
+def test_high_drift_bootstrap_covers_every_test_split_and_system():
+    import pandas as pd
+
+    path = (
+        PIPELINE.parent
+        / "results"
+        / "all_systems"
+        / "high_drift_bootstrap_by_split.csv"
+    )
+    result = pd.read_csv(path)
+    baseline_comparisons = result[result.comparison_type == "vs_baseline"]
+
+    assert set(result.split) == {"within", "short", "long"}
+    assert (result.groupby("split").n.first() == 182).all()
+    assert (baseline_comparisons.groupby("split").system_a.nunique() == 7).all()
+    assert set(baseline_comparisons.system_b) == {"baseline"}
+
+
+def test_correction_overlap_covers_every_test_split():
+    import pandas as pd
+
+    path = (
+        PIPELINE.parent
+        / "results"
+        / "all_systems"
+        / "correction_overlap_by_split.csv"
+    )
+    result = pd.read_csv(path).set_index("split")
+
+    assert set(result.index) == {"within", "short", "long"}
+    assert (result["n"] == 908).all()
+    assert result.loc["within", "shared_corrections"] == 16
+    assert result.loc["short", "shared_corrections"] == 14
+    assert result.loc["long", "shared_corrections"] == 29
+    assert result.loc["within", "jaccard_overlap"] == pytest.approx(0.3019)
+    assert result.loc["short", "jaccard_overlap"] == pytest.approx(0.2414)
+    assert result.loc["long", "jaccard_overlap"] == pytest.approx(0.4915)
+
+
 # --- smoke test: every pipeline script parses --------------------------------
 
 def test_all_pipeline_scripts_compile():

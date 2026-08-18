@@ -35,7 +35,8 @@ parquet, and regenerates every table and figure. Outputs land in:
 - `results/tables/` (dataset, drift and results tables as CSV plus LaTeX-ready fragments)
 - `results/figures/` (the figure used in the paper)
 - `results/metrics/` (drift, threshold, bootstrap, selection and contamination outputs)
-- `results/all_systems/` (the eight-system battery from steps 12 and 13)
+- `results/all_systems/` (the eight-system battery from steps 12 and 13,
+  including robustness composites for all periods)
 
 ### Retraining from scratch
 
@@ -64,25 +65,18 @@ Called in this order by `run_all.sh`:
 | 04 | `04_build_predictions.py` | For each of 6 systems × 3 seeds: loads HF checkpoint, predicts on `within` / `short` / `long`. Writes `preds_raw.parquet` |
 | 05 | `05_build_parquet.py` | Aggregates per-seed predictions by tweet, merges with drift + polarity-mismatch → `per_tweet_analysis.parquet` |
 | 06 | `06_regen_tables.py` | Recomputes the dataset, drift and results tables from the parquet |
-| 07 | `07_regen_figures.py` | Regenerates the paper figure (threshold decomposition) |
+| 07 | `07_regen_figures.py` | Regenerates the threshold and robustness composite figures |
 | 08 | `08_threshold_analysis.py` | Threshold decomposition: practice-tuned, oracle-half, and in-sample per-period sweeps |
 | 09 | `09_contamination_check.py` | Overlap between the MLM corpus and the test tweets |
 | 10 | `10_paired_bootstrap.py` | Paired bootstrap CIs quoted in the Limitations section |
 | 11 | `11_practice_selection.py` | Practice-set macro-F1 against test macro-F1 (selection trap) |
-| 12 | `12_evaluate_pretrainedtea.py` | Scores PretrainedTEA and the averaging-only ablation, and the 2×2 factorial, into `results/all_systems/` |
-| 13 | `13_evaluate_t5.py` | Scores the generative T5 system (its own generation-likelihood path) into `results/all_systems/` |
+| 12 | `12_evaluate_pretrainedtea.py` | Scores PretrainedTEA and the averaging-only ablation, builds the 2×2 factorial, and prepares robustness measures for every test split in `results/all_systems/` |
+| 13 | `13_evaluate_t5.py` | Scores the generative T5 system (its own generation-likelihood path), adds it to the robustness analysis for all periods and writes `composite_by_split.csv` |
 | 14 | `14_always_fail_residual.py` | Always-fail / always-correct residual across the eight systems → `residual.csv` |
+| 15 | `15_high_drift_bootstrap.py` | Paired-bootstrap intervals for the highest-drift quintile on all three test splits → `high_drift_bootstrap_by_split.csv` |
+| 16 | `16_correction_overlap.py` | Baseline errors corrected by MLMPretrain, TEA and PretrainedTEA, plus their correction-set overlap on all three test splits → `correction_overlap_by_split.csv` |
 
 Each script is independently runnable (assuming its inputs are on disk).
-
-**Aggregation note.** The results table reports the macro-F1 obtained by soft
-voting across the three seeds. For each tweet, the positive-class
-probabilities are averaged and the resulting score is thresholded at 0.5.
-The same rule is used for all eight systems.
-Per-seed F1 scores can be recomputed from `results/preds_raw.parquet`
-(written by `04_build_predictions.py`), which keeps each seed's
-predictions separate. The mean of per-seed F1 scores is a different,
-usually lower, aggregate than the soft-vote F1.
 
 ## Environment
 

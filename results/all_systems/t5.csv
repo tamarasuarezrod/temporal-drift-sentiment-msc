@@ -1,2 +1,2 @@
-within_mean_seed_f1,short_mean_seed_f1,long_mean_seed_f1,within_f1,short_f1,long_f1,practice_2016,practice_2018,f1,auroc,stability,q5_gain
-0.7442,0.6738,0.6875,0.7479,0.6806,0.6918,0.8013,0.7731,0.6918,0.7494,0.8579,-0.86
+within_mean_seed_f1,short_mean_seed_f1,long_mean_seed_f1,within_f1,short_f1,long_f1,practice_2016,practice_2018,within_auroc,within_stability,within_q5_gain,short_auroc,short_stability,short_q5_gain,long_auroc,long_stability,long_q5_gain,f1,auroc,stability,q5_gain
+0.7442,0.6738,0.6875,0.7479,0.6806,0.6918,0.8013,0.7731,0.8204,0.8568,1.41,0.7288,0.8634,2.74,0.7494,0.8579,-0.86,0.6918,0.7494,0.8579,-0.86
